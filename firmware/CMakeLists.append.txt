@@ -1,0 +1,109 @@
+# ═══════════════════════════════════════════════════════════════════
+#  【必做】把这段追加到  xiaozhi-esp32/main/CMakeLists.txt
+# ═══════════════════════════════════════════════════════════════════
+#
+#  为什么需要它：
+#    上游的 CMakeLists 用 file(GLOB ...) 收源文件，但它【不递归】：
+#
+#        file(GLOB BOARD_SOURCES
+#            .../boards/${BOARD_DIR}/*.cc     ← 只收这一层
+#            .../boards/${BOARD_DIR}/*.c
+#        )
+#
+#    ⇒ 所有放在【子目录】里的源文件都不会被编译：
+#        FTServo/  drivers/  stackchan_avatar/...
+#    ⇒ 链接期报一堆 undefined reference（皮肤/舵机/传感器/装饰器全丢）
+#
+#  怎么加：
+#    找到这一行（大约在 main/CMakeLists.txt 的 900 行附近）：
+#
+#        list(APPEND SOURCES ${BOARD_SOURCES})
+#
+#    在它【后面】把下面整段粘进去即可。
+#
+#  ⚠️ 只对 m5stack/core-s3 生效，不影响其他板卡。
+# ═══════════════════════════════════════════════════════════════════
+
+# ═══════════════════════════════════════════════════════════════════
+#  【必做·第 2 步】把 3 个本地组件加进 PRIV_REQUIRES
+# ═══════════════════════════════════════════════════════════════════
+#
+#  为什么需要它：
+#    光把组件拷到 xiaozhi-esp32/components/ 还不够 ——
+#    必须在 main 的 PRIV_REQUIRES 里【声明依赖】，
+#    编译器才会把组件的 include 路径加进来。
+#
+#  不做的后果：
+#    fatal error: smooth_ui_toolkit.hpp: No such file or directory
+#
+#  怎么加：
+#    找到 main/CMakeLists.txt 里的这一行（在 idf_component_register 内）：
+#
+#        PRIV_REQUIRES
+#
+#    在它的【列表里】追加下面三行（跟着其他组件写，缩进对齐即可）：
+#
+#        lvgl
+#        smooth_ui_toolkit
+#        mooncake
+#        mooncake_log
+#
+#  ★ 或者用命令一键加（更省事、不怕缩进错）：
+#
+#        python3 - <<'PYEOF'
+#        import io
+#        p = "main/CMakeLists.txt"
+#        t = io.open(p, encoding="utf-8").read()
+#        ANCHOR = "                        xiaozhi-fonts\n"
+#        ADD = ("                        lvgl\n"
+#               "                        smooth_ui_toolkit\n"
+#               "                        mooncake\n"
+#               "                        mooncake_log\n")
+#        if "smooth_ui_toolkit" not in t:
+#            t = t.replace(ANCHOR, ANCHOR + ADD, 1)
+#            io.open(p, "w", encoding="utf-8", newline="\n").write(t)
+#            print("已追加组件依赖")
+#        else:
+#            print("已存在，跳过")
+#        PYEOF
+#
+# ═══════════════════════════════════════════════════════════════════
+
+# ★ StackChan(CoreS3) 的 RGB 需要 M5Stack 的 PY32 IO 扩展驱动。
+# 该文件后缀是 .cpp，上面的 GLOB 只收 *.cc/*.c，所以必须显式加入
+# （否则链接期报 undefined reference to m5::PY32IOExpander_Class::...）。
+# 同理，飞特舵机驱动放在 FTServo/ 子目录，GLOB 不递归，也要显式加入。
+if(BOARD_DIR STREQUAL "m5stack/core-s3")
+    list(APPEND SOURCES
+        "boards/m5stack/core-s3/PY32IOExpander_Class.cpp"
+        "boards/m5stack/core-s3/FTServo/SCS.cpp"
+        "boards/m5stack/core-s3/FTServo/SCSCL.cpp"
+        "boards/m5stack/core-s3/FTServo/SCSerial.cpp"
+        # ★ 传感器驱动（GLOB 不递归，子目录必须显式列出）
+        #   Si12T = 头顶触摸（I2C 0x68）；motion_detector = 摇晃判定
+        "boards/m5stack/core-s3/drivers/Si12T/Si12T.cpp"
+        "boards/m5stack/core-s3/drivers/bmi270/bmi270.cpp")
+        # 注：stackchan_sensor.cc 在 core-s3 根目录，GLOB 会自动收
+    # ★ 官方几何脸（第二套皮肤）：从 official-stackchan 搬来（MIT）
+    #   放在 stackchan_avatar/ 子目录，GLOB 不递归 ⇒ 必须显式列出。
+    #   ⛔ 只列 .cpp；素材 .c 里是 const 数组，需要单独加（见下）。
+    list(APPEND SOURCES
+        "boards/m5stack/core-s3/stackchan_avatar/decorators/angry.cpp"
+        "boards/m5stack/core-s3/stackchan_avatar/decorators/dizzy.cpp"
+        "boards/m5stack/core-s3/stackchan_avatar/decorators/heart.cpp"
+        "boards/m5stack/core-s3/stackchan_avatar/decorators/shy.cpp"
+        "boards/m5stack/core-s3/stackchan_avatar/decorators/sweat.cpp"
+        "boards/m5stack/core-s3/stackchan_avatar/skins/default/default.cpp"
+        "boards/m5stack/core-s3/stackchan_avatar/skins/default/eyes.cpp"
+        "boards/m5stack/core-s3/stackchan_avatar/skins/default/mouth.cpp"
+        "boards/m5stack/core-s3/stackchan_avatar/skins/default/speech_bubble.cpp")
+    # ★ 素材（LVGL 图片数组，LV_IMAGE_DECLARE 声明 + .c 定义）
+    #   ⛔ 少了这些 ⇒ 链接期 undefined reference to `decorator_xxx`
+    list(APPEND SOURCES
+        "boards/m5stack/core-s3/stackchan_avatar/decorators/assets/decorator_angry.c"
+        "boards/m5stack/core-s3/stackchan_avatar/decorators/assets/decorator_dizzy.c"
+        "boards/m5stack/core-s3/stackchan_avatar/decorators/assets/decorator_heart.c"
+        "boards/m5stack/core-s3/stackchan_avatar/decorators/assets/decorator_shy.c"
+        "boards/m5stack/core-s3/stackchan_avatar/decorators/assets/decorator_sweat.c"
+        "boards/m5stack/core-s3/stackchan_avatar/skins/default/assets/default_bubble_arrow.c")
+endif()

@@ -1,0 +1,3036 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fairy 控制台</title>
+<style>
+  :root{
+    --bg:#0b0d12; --bg2:#11141c; --card:#151925; --card2:#1a1f2e;
+    --line:#252b3d; --line2:#2f3750;
+    --fg:#e8ebf5; --dim:#8f98b3; --dim2:#6b7characters;
+    --accent:#62d4ff; --accent2:#1688ce; --accent3:#2aa9e8;
+    --ok:#34d399; --warn:#fbbf24; --err:#f87171;
+    --user:#1688ce; --ai:#62d4ff;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:
+      radial-gradient(1100px 600px at 12% -10%, #1e1a3a 0%, transparent 55%),
+      radial-gradient(900px 500px at 88% 0%, #0d2a3a 0%, transparent 50%),
+      var(--bg);
+    color:var(--fg);
+    font:14px/1.62 -apple-system,"Segoe UI","Microsoft YaHei",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::-webkit-scrollbar{width:9px;height:9px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:var(--line2);border-radius:9px;
+    border:2px solid transparent;background-clip:padding-box}
+  ::-webkit-scrollbar-thumb:hover{background:#3d4770;background-clip:padding-box}
+
+  /* ── 布局 ── */
+  .app{display:flex;height:100vh;overflow:hidden}
+  .side{
+    width:210px;flex-shrink:0;border-right:1px solid var(--line);
+    background:rgba(17,20,28,.72);backdrop-filter:blur(14px);
+    display:flex;flex-direction:column;
+  }
+  .brand{padding:18px 18px 14px;border-bottom:1px solid var(--line)}
+  .brand h1{font-size:16px;font-weight:700;letter-spacing:.3px;
+    background:none;
+    }
+  .brand p{font-size:11px;color:var(--dim);margin-top:3px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  nav{padding:10px 10px;flex:1;overflow-y:auto}
+  nav button{
+    display:flex;align-items:center;gap:9px;width:100%;text-align:left;
+    background:transparent;border:0;color:var(--dim);
+    padding:9px 11px;border-radius:9px;cursor:pointer;
+    font:13px/1 inherit;transition:all .16s;margin-bottom:2px;
+  }
+  nav button:hover{background:var(--card);color:var(--fg)}
+  nav button.on{background:#267fc4!important;background-image:none!important;
+    color:var(--fg);box-shadow:inset 0 0 0 1px var(--line2)}
+  nav button .ico{font-size:15px;width:19px;text-align:center;flex-shrink:0}
+  .side-foot{padding:10px 14px;border-top:1px solid var(--line);
+    font-size:11px;color:var(--dim);display:flex;gap:8px;align-items:center}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--dim);flex-shrink:0}
+  .dot.on{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+
+  .main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+  .top{padding:14px 26px;border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:12px;flex-shrink:0;
+    background:rgba(11,13,18,.55);backdrop-filter:blur(10px)}
+  .top h2{font-size:15px;font-weight:600}
+  .top .sp{flex:1}
+  .content{flex:1;overflow-y:auto;padding:22px 26px 30px}
+
+  /* ── 控件 ── */
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:16px 18px;margin-bottom:14px}
+  .card h3{font-size:13.5px;font-weight:600;margin-bottom:3px;
+    display:flex;align-items:center;gap:7px}
+  .card .hint{font-size:11.5px;color:var(--dim);margin-bottom:13px}
+  label{display:block;font-size:11.5px;color:var(--dim);margin:11px 0 5px}
+  input,textarea,select{
+    width:100%;background:var(--bg2);color:var(--fg);
+    border:1px solid var(--line);border-radius:9px;padding:9px 11px;
+    font:13px/1.5 inherit;outline:none;transition:border-color .15s,box-shadow .15s}
+  input:focus,textarea:focus,select:focus{
+    border-color:var(--accent);box-shadow:0 0 0 3px rgba(98,212,255,.13)}
+  textarea{resize:vertical;font-family:ui-monospace,"Cascadia Code",Consolas,monospace;
+    font-size:12.5px;line-height:1.7}
+  .row{display:flex;gap:12px}
+  .row>div{flex:1}
+  button{cursor:pointer;font:13px/1 inherit;border:0;border-radius:9px;
+    padding:9px 15px;transition:all .15s}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  .btn{background:#1688ce!important;background-image:none!important;color:#fff;
+    font-weight:500}
+  .btn:hover:not(:disabled){filter:brightness(1.12)}
+  .ghost{background:transparent;border:1px solid var(--line2);color:var(--fg)}
+  .ghost:hover:not(:disabled){background:var(--card2)}
+  .danger{background:rgba(248,113,113,.14);color:var(--err);
+    border:1px solid rgba(248,113,113,.3)}
+  .sm{padding:6px 11px;font-size:12px}
+  .masked{font-family:ui-monospace,monospace;color:var(--dim);font-size:11.5px}
+  .credit{font-size:11.5px;color:var(--dim);background:var(--bg2);
+    border:1px dashed var(--line2);border-radius:9px;padding:9px 12px;margin-top:11px}
+  .credit b{color:var(--accent2)}
+
+  /* ── 对话 ── */
+  .chatwrap{display:flex;flex-direction:column;height:100%;gap:12px}
+  .chattop{display:flex;align-items:center;gap:10px;flex-shrink:0;flex-wrap:wrap}
+  .chattop .sp{flex:1}
+  .msgs{
+    flex:1;overflow-y:auto;padding:16px 4px;display:flex;
+    flex-direction:column;gap:13px;min-height:0;
+  }
+  .empty{color:var(--dim);text-align:center;padding:50px 0;font-size:13px}
+  .msg{display:flex;gap:10px;max-width:86%}
+  .msg.user{margin-left:auto;flex-direction:row-reverse}
+  .av{width:38px;height:38px;border-radius:11px;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;font-size:17px;
+    overflow:hidden}
+  .feye{display:block;width:100%;height:100%}
+  .brand h1{display:flex;align-items:center;gap:8px}
+  .msg.user .av{background:rgba(56,189,248,.16);box-shadow:inset 0 0 0 1px rgba(56,189,248,.3)}
+  .msg.ai .av{background:rgba(98,212,255,.16);box-shadow:inset 0 0 0 1px rgba(98,212,255,.32)}
+  .bub{padding:10px 13px;border-radius:12px;font-size:13.3px;
+    white-space:pre-wrap;word-break:break-word;line-height:1.68}
+  .msg.user .bub{background:rgba(56,189,248,.11);border:1px solid rgba(56,189,248,.19)}
+  .msg.ai .bub{background:var(--card);border:1px solid var(--line)}
+  .meta{font-size:10.5px;color:var(--dim);margin-top:5px;
+    display:flex;gap:7px;align-items:center}
+  .msg.user .meta{justify-content:flex-end}
+  .src{font-size:9.5px;padding:1px 6px;border-radius:99px;
+    border:1px solid var(--line2);color:var(--dim)}
+  .composer{flex-shrink:0;display:flex;gap:9px;align-items:flex-end;
+    background:var(--card);border:1px solid var(--line);border-radius:13px;padding:10px}
+  .composer textarea{background:transparent;border:0;padding:6px 4px;
+    font-family:inherit;font-size:13.3px;max-height:150px;resize:none;
+    box-shadow:none !important}
+  .composer textarea:focus{box-shadow:none}
+  .typing{display:inline-flex;gap:3px;align-items:center}
+  .typing i{width:6px;height:6px;border-radius:50%;background:var(--accent);
+    animation:bl 1.1s infinite}
+  .typing i:nth-child(2){animation-delay:.18s}
+  .typing i:nth-child(3){animation-delay:.36s}
+  @keyframes bl{0%,60%,100%{opacity:.25;transform:translateY(0)}
+    30%{opacity:1;transform:translateY(-3px)}}
+
+  .toast{position:fixed;top:18px;left:50%;transform:translateX(-50%) translateY(-16px);
+    padding:10px 19px;border-radius:10px;font-size:13px;z-index:99;
+    opacity:0;pointer-events:none;transition:all .22s;max-width:78vw;
+    box-shadow:0 8px 26px rgba(0,0,0,.45)}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast.ok{background:var(--ok);color:#04231a}
+  .toast.err{background:var(--err);color:#fff}
+  .toast.warn{background:var(--warn);color:#241a00}
+  .hidden{display:none !important}
+  .stat{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--dim)}
+  @media(max-width:760px){
+    .side{width:60px}
+    /* ★ 原规则是 .brand h1,.brand p,nav button span.t,.side-foot span{display:none}
+   —— 把品牌标题/副标题/导航文字全藏了。用户要求显示文字，故放开。 */
+.brand h1,.brand p,nav button span.t,.side-foot span{display:block}
+    nav button{justify-content:center;padding:11px 0}
+    .content{padding:15px}
+  }
+
+/* ==== FAIRY-EYE-START ==== */
+
+/* ---- 全量 @keyframes（11 个）---- */
+@keyframes fv7-thinking-clip {
+	from { transform: translateY(14.5px) scaleY(.55); }
+	to { transform: translateY(15.5px); }
+}
+@keyframes fv7-comforting-clip {
+	from { transform: translateY(-4px); }
+	to { transform: translateY(4px); }
+}
+@keyframes fv7-lash-pulse {
+	0% { opacity: 0; transform: scale(.98); }
+	/* Transform stays on one continuous 0%-36% path; only opacity steps down. */
+	5% { opacity: .72; }
+	12% { opacity: .52; }
+	20% { opacity: .19; }
+	27% { opacity: 0; }
+	36%, 100% { opacity: 0; transform: scale(2.78); }
+}
+@keyframes fv7-lash-pulse-slow {
+	0% { opacity: 0; transform: scale(.98); }
+	3.9% { opacity: .72; }
+	9.4% { opacity: .52; }
+	15.7% { opacity: .19; }
+	21.2% { opacity: 0; }
+	28.3%, 100% { opacity: 0; transform: scale(2.78); }
+}
+@keyframes fv7-lash-pulse-fast {
+	0% { opacity: 0; transform: scale(.98); }
+	6.4% { opacity: .72; }
+	15.3% { opacity: .52; }
+	25.4% { opacity: .19; }
+	34.3% { opacity: 0; }
+	45.8%, 100% { opacity: 0; transform: scale(2.78); }
+}
+@keyframes fv7-lashes { to { transform: rotate(360deg); } }
+@keyframes fv7-pulse-outer {
+	/* Keep the fully expanded sclera just inside the lid edge so the ring
+	 * never becomes visibly thinner than the calibrated resting thickness. */
+	from { transform: scale(.985); }
+	to { transform: scale(.91); }
+}
+@keyframes fv7-pulse-three {
+	from { transform: scale(1); }
+	to { transform: scale(.90); }
+}
+@keyframes fv7-pulse-two {
+	from { transform: scale(1); }
+	to { transform: scale(.87); }
+}
+@keyframes fv7-pulse-inner {
+	from { transform: scale(1); }
+	to { transform: scale(.85); }
+}
+@keyframes fv7-eye-flicker-overlay {
+	0%, 100% { opacity: 0; }
+	22% { opacity: var(--fv7-flicker-opacity-1, .04); }
+	48% { opacity: var(--fv7-flicker-opacity-mid, .012); }
+	72% { opacity: var(--fv7-flicker-opacity-2, .03); }
+}
+
+/* ---- 全量结构规则（58 条）---- */
+[data-fv7-mascot-root="true"] {width:100% !important;height:100% !important;
+    z-index:1 !important;position:relative !important;
+    overflow:visible !important;
+    --fv7-steady-rate: 1;}
+[data-fv7-mascot-root="true"] {position: relative;
+	width: min(76%, 36vh, 450px);
+	height: min(76%, 36vh);
+	aspect-ratio: 1;
+	z-index: 99999;
+	pointer-events: none;
+	user-select: none;
+	
+	overflow: visible;}
+[data-fv7-mascot-root="true"], [data-fv7-mascot-root="true"] * {box-sizing: border-box;}
+html[data-fv7-visual][data-fv7-theme="light"] [data-fv7-mascot-root="true"] .fv7-halo path,
+html[data-fv7-visual][data-fv7-theme="light"] [data-fv7-mascot-root="true"] .fv7-lash-pulse {stroke: #172531;}
+[data-fv7-mascot-root="true"] {--fv7-outer-halo-color: #c9f8ff;}
+[data-fv7-mascot-root="true"] .fv7-halo {color: #c9efff;}
+html[data-fv7-visual][data-fv7-theme="light"] [data-fv7-mascot-root="true"] {--fv7-outer-halo-color: #172531;}
+html[data-fv7-visual][data-fv7-theme="light"] [data-fv7-mascot-root="true"] .fv7-halo {color: #172531;}
+[data-fv7-mascot-root="true"][data-low-power] .fv7-outer-disc,
+[data-fv7-mascot-root="true"][data-low-power] .fv7-sclera,
+[data-fv7-mascot-root="true"][data-low-power] .fv7-highlight-glow {filter: none;}
+[data-fv7-mascot-root="true"][data-low-power] .fv7-outer-halo,
+[data-fv7-mascot-root="true"][data-low-power] .fv7-sclera-halo,
+[data-fv7-mascot-root="true"][data-low-power] .fv7-sclera-contact,
+[data-fv7-mascot-root="true"][data-low-power] .fv7-highlight-halo {display: none;}
+[data-fv7-mascot-root="true"][data-low-power] .fv7-halo,
+[data-fv7-mascot-root="true"][data-low-power] .fv7-lash-pulse {display: none;}
+[data-fv7-mascot-root="true"][data-low-power] .fv7-corners,
+[data-fv7-mascot-root="true"][data-low-power] .fv7-lash-pulse-wave,
+[data-fv7-mascot-root="true"][data-low-power] .fv7-sclera,
+[data-fv7-mascot-root="true"][data-low-power] .fv7-layer-three,
+[data-fv7-mascot-root="true"][data-low-power] .fv7-layer-two,
+[data-fv7-mascot-root="true"][data-low-power] .fv7-layer-one,
+[data-fv7-mascot-root="true"][data-low-power] .fv7-thinking-clip-shape,
+[data-fv7-mascot-root="true"][data-low-power] .fv7-comforting-clip-shape {will-change: auto;}
+[data-fv7-mascot-root="true"][data-transition-glitch] .fv7-outer-disc,
+[data-fv7-mascot-root="true"][data-transition-glitch] .fv7-sclera,
+[data-fv7-mascot-root="true"][data-transition-glitch] .fv7-highlight-glow,
+[data-fv7-mascot-root="true"] .fv7-signal[data-glitch] .fv7-outer-disc,
+[data-fv7-mascot-root="true"] .fv7-signal[data-glitch] .fv7-sclera,
+[data-fv7-mascot-root="true"] .fv7-signal[data-glitch] .fv7-highlight-glow {filter: none;}
+[data-fv7-mascot-root="true"] .fv7-float {position: relative;
+	width: 100%;
+	height: 100%;
+	overflow: visible;}
+[data-fv7-mascot-root="true"] svg {display: block;
+	width: 100%;
+	height: 100%;
+	overflow: visible;}
+[data-fv7-mascot-root="true"] .fv7-pulse-layer {position: absolute;
+	left: -100%;
+	top: -100%;
+	width: 300%;
+	height: 300%;
+	z-index: 0;
+	opacity: .92;
+	display: block;
+	visibility: visible;
+	pointer-events: none;}
+[data-fv7-mascot-root="true"] .fv7-halo-layer {position: absolute;
+	left: -112.5%;
+	top: -43.75%;
+	width: 325%;
+	height: 200%;
+	z-index: 0;
+	pointer-events: none;
+	opacity: .92;}
+[data-fv7-mascot-root="true"] .fv7-main {position: relative;
+	z-index: 1;
+	
+	opacity: 1;}
+[data-fv7-mascot-root="true"] .fv7-signal {transform-origin: 80px 80px;}
+[data-fv7-mascot-root="true"] .fv7-signal[data-glitch],
+[data-fv7-mascot-root="true"][data-transition-glitch] .fv7-signal {will-change: transform, filter;
+	filter:
+		brightness(var(--fv7-g-bright, 1.12))
+		contrast(var(--fv7-g-contrast, 1.18));
+	transform: translateX(var(--fv7-g-x, 0)) skewX(var(--fv7-g-skew, 0deg));}
+[data-fv7-mascot-root="true"] .fv7-image {opacity: 1;}
+[data-fv7-mascot-root="true"] .fv7-glitch-blocks {opacity: 0;
+	display: none;}
+[data-fv7-mascot-root="true"] .fv7-signal[data-glitch="threads"] > .fv7-image,
+[data-fv7-mascot-root="true"][data-transition-glitch] .fv7-signal > .fv7-image {filter: url(#fv7-interference);}
+[data-fv7-mascot-root="true"] .fv7-signal[data-glitch="blocks"] .fv7-glitch-blocks {opacity: 1;
+	display: block;}
+[data-fv7-mascot-root="true"] .fv7-signal[data-glitch="blocks"] .fv7-corners {animation: none !important;
+	transform: rotate(var(--dsh-lash-angle, 0deg));}
+[data-fv7-mascot-root="true"] .fv7-signal[data-glitch="blocks"] .fv7-glitch-blocks .fv7-sclera,
+[data-fv7-mascot-root="true"] .fv7-signal[data-glitch="blocks"] .fv7-glitch-blocks .fv7-layer-three,
+[data-fv7-mascot-root="true"] .fv7-signal[data-glitch="blocks"] .fv7-glitch-blocks .fv7-layer-two,
+[data-fv7-mascot-root="true"] .fv7-signal[data-glitch="blocks"] .fv7-glitch-blocks .fv7-layer-one {animation-play-state: paused !important;
+	will-change: auto;}
+[data-fv7-mascot-root="true"] .fv7-glitch-1 {transform: translateX(var(--fv7-g-s1-x, 0));}
+[data-fv7-mascot-root="true"] .fv7-glitch-2 {transform: translateX(var(--fv7-g-s2-x, 0));}
+[data-fv7-mascot-root="true"] .fv7-glitch-3 {transform: translateX(var(--fv7-g-s3-x, 0));}
+[data-fv7-mascot-root="true"] .fv7-glitch-4 {transform: translateX(var(--fv7-g-s4-x, 0));}
+[data-fv7-mascot-root="true"] .fv7-glitch-5 {transform: translateX(var(--fv7-g-s5-x, 0));}
+[data-fv7-mascot-root="true"] .fv7-corners {animation: fv7-lashes 15s linear infinite;
+	animation-delay: var(--dsh-lash-delay, 0s);
+	transform-origin: 80px 80px;
+	will-change: transform;}
+[data-fv7-mascot-root="true"] .fv7-lash-pulse-wave {animation: fv7-lash-pulse var(--fv7-pulse-cycle, 4s) cubic-bezier(.42, 0, .22, 1) infinite;
+	display: block;
+	visibility: visible;
+	opacity: 1;
+	transform-box: view-box;
+	transform-origin: 80px 80px;
+	will-change: opacity, transform;}
+[data-fv7-mascot-root="true"][data-fv7-animation-rate=".7"] .fv7-lash-pulse-wave {animation-name: fv7-lash-pulse-slow;}
+[data-fv7-mascot-root="true"][data-fv7-animation-rate="1.5"] .fv7-lash-pulse-wave {animation-name: fv7-lash-pulse-fast;}
+[data-fv7-mascot-root="true"] .fv7-eye {transform: scale(.90);
+	transform-origin: 80px 80px;}
+[data-fv7-mascot-root="true"] .fv7-eye-flicker {opacity: 0;
+	animation: none;}
+[data-fv7-mascot-root="true"] .fv7-image[data-flicker="true"] ~ .fv7-eye-flicker,
+[data-fv7-mascot-root="true"] .fv7-image[data-flicker="true"] .fv7-eye-flicker {animation: fv7-eye-flicker-overlay var(--fv7-flicker-duration, 210ms) cubic-bezier(.32, 0, .68, 1) both;
+	will-change: opacity;}
+[data-fv7-mascot-root="true"][data-low-power] .fv7-eye {animation: none !important;
+	filter: none !important;}
+[data-fv7-mascot-root="true"][data-low-power] .fv7-eye-flicker {display: none !important;}
+[data-fv7-mascot-root="true"][data-state="thinking"] .fv7-eye {clip-path: url(#fv7-thinking-eye-clip);}
+[data-fv7-mascot-root="true"][data-state="comforting"] .fv7-eye {clip-path: url(#fv7-comforting-eye-clip);}
+[data-fv7-mascot-root="true"] .fv7-thinking-clip-shape {animation: fv7-thinking-clip .75s cubic-bezier(.72, 0, .28, 1) 0s infinite alternate;
+	animation-play-state: paused;
+	transform-box: view-box;
+	transform-origin: 80px 60px;
+	will-change: auto;}
+[data-fv7-mascot-root="true"] .fv7-comforting-clip-shape {animation: fv7-comforting-clip .75s cubic-bezier(.72, 0, .28, 1) 0s infinite alternate;
+	animation-play-state: paused;
+	transform-box: view-box;
+	transform-origin: 80px 60px;
+	will-change: auto;}
+[data-fv7-mascot-root="true"] .fv7-sclera {animation: fv7-pulse-outer .75s cubic-bezier(.72, 0, .28, 1) 0s infinite alternate;
+	transform-box: view-box;
+	transform-origin: 80px 80px;
+	will-change: transform;}
+[data-fv7-mascot-root="true"] .fv7-layer-three {animation: fv7-pulse-three .75s cubic-bezier(.72, 0, .28, 1) -.045s infinite alternate;
+	transform-origin: 80px 80px;
+	will-change: transform;}
+[data-fv7-mascot-root="true"] .fv7-layer-two {animation: fv7-pulse-two .75s cubic-bezier(.72, 0, .28, 1) -.09s infinite alternate;
+	transform-origin: 80px 80px;
+	will-change: transform;}
+[data-fv7-mascot-root="true"] .fv7-layer-one {animation: fv7-pulse-inner .75s cubic-bezier(.72, 0, .28, 1) -.18s infinite alternate;
+	transform-origin: 80px 80px;
+	will-change: transform;}
+[data-fv7-mascot-root="true"][data-visual-suspended],
+[data-fv7-mascot-root="true"][data-visual-suspended] * {animation-play-state: paused !important;
+	will-change: auto !important;}
+22% {opacity: var(--fv7-flicker-opacity-1, .04);}
+48% {opacity: var(--fv7-flicker-opacity-mid, .012);}
+72% {opacity: var(--fv7-flicker-opacity-2, .03);}
+[data-fv7-mascot-root="true"] {width: min(76%, 31vh, 324px); height: min(76%, 31vh);}
+[data-fv7-mascot-root="true"] .fv7-halo path {stroke-width:1.1 !important;}
+[data-fv7-mascot-root="true"] .fv7-lash-pulse-wave circle {display:none !important;}
+[data-fv7-mascot-root="true"] .fv7-pulse-layer {filter: drop-shadow(0 0 14px rgba(201,248,255,.75))
+            drop-shadow(0 0 32px rgba(90,150,255,.4));}
+[class*="fv7-glitch-"] {opacity:0;}
+
+/* ---- 宿主适配（对话页用来居中一只大眼）---- */
+.fv7-host{position:relative;width:100%;height:100%;
+  display:flex;align-items:center;justify-content:center;overflow:visible}
+/* ★ 覆盖原版被动尺寸：让它随宿主缩放，而不是 min(76%,31vh,324px) */
+.fv7-host [data-fv7-mascot-root="true"]{
+  width:100% !important;height:100% !important;
+  max-width:min(100%,560px);max-height:min(100%,560px);
+  aspect-ratio:1;
+  /* ★ 原版的"节流"变量：所有 animation 周期都写成
+       calc(.75s / var(--fv7-steady-rate, 1))
+     若这个变量没定义，calc 会因 var() 无效而使整条 animation 失效。
+     原文件把它定义在 [data-dsh-fairy-mascot-root] 上，显式补一个默认值。 */
+  --fv7-steady-rate:1;
+  --fv7-pulse-cycle:4s;
+  --fv7-lash-angle:0deg;
+  --fv7-flicker-duration:210ms;
+}
+.fv7-host [data-fv7-mascot-root="true"] *{animation-play-state:running !important}
+/* ---- 状态：thinking / speaking 在 v7 里靠 clip-path 换表情 ---- */
+.fv7-host [data-fv7-mascot-root="true"][data-state="thinking"] .fv7-eye{
+  clip-path:url(#fv7-thinking-eye-clip);
+}
+.fv7-host [data-fv7-mascot-root="true"][data-state="speaking"]{
+  transform:scale(1.04);
+}
+.fv7-host [data-fv7-mascot-root="true"]{transition:transform .45s ease, filter .45s ease}
+
+
+/* 对话页里眼睛舞台的布局 */
+/* ★ 眼睛舞台：透明浮层（官方做法）
+   官方 .dsh-fairy-stage 是 position:fixed + pointer-events:none + 无实心底色，
+   光晕直接淡出到页面背景 —— 这样【不会盖住下面的对话】。
+   之前我加了实心径向渐变 + overflow:hidden，把对话挡掉了，这里改回透明。 */
+#eyeStage{flex-shrink:0;display:flex;align-items:center;justify-content:center;
+  position:relative;padding:0;background:transparent;overflow:visible;
+  pointer-events:none}
+#eyeStage .fv7-host{width:min(54vh,380px);height:min(54vh,380px)}
+#fv7Eye{transition:transform .45s ease, filter .45s ease}
+/* ==== FAIRY-EYE-END ==== */
+
+/* ==== ZZZ-THEME-START ==== */
+/* 绝区零（Zenless Zone Zero）风格材质
+   ★ 抄自 Fairy-DSH 的 style.js（Apache-2.0）：
+       [data-composer-card=true] { background:#0a1c30;
+                                   border-color:rgba(126,220,255,.28) }
+       textarea { color:#e8f8ff }
+       --dsh-composer-top-highlight: rgba(255,255,255,.13)
+       --dsh-composer-top-face:      rgba(255,255,255,.045)
+       --dsh-composer-top-shade:     rgba(0,0,0,.20)
+       sidebar hover #0e243d / active #143553
+   核心特征：深蓝底 + 青色描边 + 顶部一条渐变高光（"面板厚度"感） */
+:root{
+  --zzz-panel:#0a1c30;
+  --zzz-panel-2:#0d2338;
+  --zzz-line:rgba(126,220,255,.28);
+  --zzz-line-soft:rgba(126,220,255,.14);
+  --zzz-text:#e8f8ff;
+  --zzz-dim:#7f9fb8;
+  --zzz-hl:rgba(255,255,255,.13);
+  --zzz-face:rgba(255,255,255,.045);
+  --zzz-shade:rgba(0,0,0,.20);
+  --zzz-accent:#4dd7ff;
+}
+/* 消息气泡：深蓝面板 + 青色描边 + 顶部高光 */
+.bub{
+  background:linear-gradient(180deg,var(--zzz-face) 0,transparent 2px),
+             var(--zzz-panel);
+  border:1px solid var(--zzz-line-soft);
+  color:var(--zzz-text);
+  position:relative;
+  box-shadow:0 2px 10px -6px rgba(0,0,0,.8),
+             inset 0 1px 0 var(--zzz-hl);
+}
+/* 气泡左上角的"工程角标"（绝区零那种切角装饰） */
+.bub::before{
+  content:'';position:absolute;left:-1px;top:-1px;width:10px;height:10px;
+  border-left:2px solid var(--zzz-accent);border-top:2px solid var(--zzz-accent);
+  border-top-left-radius:12px;opacity:.55;pointer-events:none;
+}
+.bub::after{
+  content:'';position:absolute;right:-1px;bottom:-1px;width:10px;height:10px;
+  border-right:2px solid var(--zzz-accent);border-bottom:2px solid var(--zzz-accent);
+  border-bottom-right-radius:12px;opacity:.35;pointer-events:none;
+}
+.msg.user .bub{
+  background:linear-gradient(180deg,rgba(77,215,255,.10) 0,transparent 2px),
+             #0e2a42;
+  border-color:var(--zzz-line);
+}
+.msg.ai .bub{
+  background:linear-gradient(180deg,var(--zzz-face) 0,transparent 2px),
+             var(--zzz-panel);
+}
+/* 头像：同步换成青色系描边 */
+.msg.user .av{background:rgba(77,215,255,.10)!important;
+  box-shadow:inset 0 0 0 1px var(--zzz-line)!important}
+.msg.ai .av{background:rgba(98,212,255,.10)!important;
+  box-shadow:inset 0 0 0 1px rgba(98,212,255,.34)!important}
+/* 输入框：官方 composer 同款 */
+#input,.composer,input,textarea{
+  background:var(--zzz-panel)!important;
+  border:1px solid var(--zzz-line)!important;
+  color:var(--zzz-text)!important;
+  box-shadow:inset 0 1px 0 var(--zzz-hl);
+}
+/* 输入区外框再来一条顶部高光（"面板厚度"） */
+.composer,.inputbar,.input-wrap{position:relative}
+.composer::before,.inputbar::before,.input-wrap::before{
+  content:'';position:absolute;left:0;right:0;top:0;height:9px;
+  pointer-events:none;z-index:3;
+  background:linear-gradient(180deg,
+    var(--zzz-hl) 0 .7px, var(--zzz-face) 1.4px,
+    var(--zzz-shade) 2.6px, transparent 100%);
+}
+/* 侧栏导航：官方 hover/active 配色 */
+nav button:hover{background:#0e243d!important}
+nav button.on,nav button.active,nav button[data-active="true"]{
+  background:#143553!important}
+/* 通用按钮：青色描边 */
+button{border-color:var(--zzz-line-soft)}
+/* 时间戳等次要文字 */
+.meta,.time{color:var(--zzz-dim)!important}
+/* ==== ZZZ-THEME-END ==== */
+
+/* ==== REF-UI-VISUAL-START ==== */
+/* 视觉对齐参考图（只做视觉，不动功能）
+   ★ 抄自用户给的 Fairy-DSH 界面截图：
+       深藏青底 + 淡网格 / 用户气泡实心蓝 / AI 正文无气泡 / 眼睛放大居中 */
+:root{
+  --ref-bg:#0b0f19;
+  --ref-bg2:#111827;
+  --ref-grid:rgba(120,180,255,.045);
+  --ref-user:#1e3a8a;
+  --ref-user-line:rgba(96,165,250,.45);
+  --ref-text:#f2f6ff;
+  --ref-dim:#9ca3af;
+}
+/* ── 1. 页面背景：深藏青 + 淡网格（蓝图感）── */
+body,.main,.content,.wrap{
+  background-color:var(--ref-bg);
+  background-image:
+    linear-gradient(var(--ref-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--ref-grid) 1px, transparent 1px),
+    radial-gradient(circle at 50% 28%, rgba(30,58,138,.28) 0%,
+                    rgba(11,15,25,0) 62%);
+  background-size:34px 34px, 34px 34px, 100% 100%;
+  background-attachment:fixed;
+  color:var(--ref-text);
+}
+/* ── 2. 用户气泡：实心中深蓝 + 圆角 ── */
+.msg.user .bub{
+  background:var(--ref-user);
+  background-image:none;
+  border:1px solid var(--ref-user-line);
+  border-radius:14px;
+  color:#fff;
+  box-shadow:0 4px 18px -10px rgba(30,58,138,.9);
+  padding:11px 15px;
+}
+/* 用户气泡不要工程角标（参考图里是干净圆角矩形） */
+.msg.user .bub::before,.msg.user .bub::after{display:none}
+/* ── 3. ★ AI 回复：不进气泡，纯文字浮在背景上 ── */
+.msg.ai .bub{
+  background:transparent;
+  background-image:none;
+  border:none;
+  border-radius:0;
+  box-shadow:none;
+  padding:2px 0;
+  color:var(--ref-text);
+}
+.msg.ai .bub::before,.msg.ai .bub::after{display:none}
+/* ── 4. 眼睛放大 + 居中偏上 ── */
+#eyeStage{
+  align-items:flex-start;
+  padding:6px 0 0;
+  margin-bottom:-24px;
+}
+#eyeStage .fv7-host{
+  width:min(42vh,420px);
+  height:min(42vh,420px);
+}
+/* ── 5. 间距宽松 ── */
+.msgs{gap:22px!important;padding:18px 6px 20px!important}
+.msg{gap:12px;max-width:82%}
+.msg .meta{margin-top:7px;color:var(--ref-dim);font-size:11.5px}
+/* ── 6. 头像弱化（参考图里很小很淡）── */
+.msg .av{width:30px;height:30px;border-radius:9px;opacity:.9}
+.msg.ai .av{background:transparent!important;box-shadow:none!important}
+/* 正文行距 */
+.msg .bub{line-height:1.72;font-size:14px}
+/* 输入框保持深色面板（参考图底部也有输入条） */
+.composer{background:rgba(17,24,39,.72)!important;
+  backdrop-filter:blur(6px)}
+/* ==== REF-UI-VISUAL-END ==== */
+
+/* ==== REF-NOBUBBLE-START ==== */
+/* 去气泡：两侧都纯文字，Fairy 左 / 我 右（对齐参考图）
+   ★ 用户明确：「对话无需气泡，左边是 fairy，右边是我」 */
+.msg .bub,
+.msg.user .bub,
+.msg.ai .bub{
+  background:transparent!important;
+  background-image:none!important;
+  border:none!important;
+  border-radius:0!important;
+  box-shadow:none!important;
+  padding:1px 0!important;
+  color:var(--ref-text,#eef3fb);
+}
+.msg .bub::before,.msg .bub::after{display:none!important}
+/* 左右分列：Fairy 左、我 右（保持头像在外侧） */
+.msg{max-width:78%;gap:10px}
+.msg.user{flex-direction:row-reverse;margin-left:auto;text-align:right}
+.msg.user>div:last-child{align-items:flex-end}
+.msg.ai{margin-right:auto}
+/* 头像：圆形、无底色框（参考图里是纯圆标识） */
+.msg .av,.msg.user .av,.msg.ai .av{
+  width:32px;height:32px;border-radius:50%;
+  background:transparent!important;background-image:none!important;
+  box-shadow:none!important;border:none!important;overflow:visible}
+.msg .av svg{display:block;border-radius:50%}
+/* 字体：清爽无衬线，字号行距对齐参考图 */
+.msg .bub,.msg .bub *{
+  font-family:"Inter","Segoe UI","PingFang SC","Microsoft YaHei",
+    -apple-system,sans-serif;
+  font-size:14.5px;line-height:1.78;letter-spacing:.1px;
+  font-weight:400;
+}
+.msg .meta{margin-top:6px;font-size:11px;color:#8b97ad;letter-spacing:.2px}
+.msg.user .meta{justify-content:flex-end;display:flex}
+/* 消息间距再放宽一点 */
+.msgs{gap:26px!important;padding:20px 8px 24px!important}
+/* ==== REF-NOBUBBLE-END ==== */
+
+/* ==== REF-NOAV-BIG-START ==== */
+/* ① 去掉对话头像（用户要求「不要头像」）*/
+.msg .av{display:none!important}
+/* ② 字号放大（用户反馈「字号太小了」）—— 14.5px → 16px */
+.msg .bub,.msg .bub *{
+  font-size:16px!important;
+  line-height:1.85!important;
+  letter-spacing:.2px!important;
+}
+.msg .meta{font-size:12px!important;margin-top:8px!important}
+/* ③ 无头像后，消息用"左/右对齐 + 左侧色条"区分双方 */
+.msg{gap:0;max-width:80%}
+.msg>div{min-width:0}
+.msg.user{padding-right:2px;border-right:2px solid rgba(96,165,250,.5);
+  padding-right:12px}
+.msg.ai{padding-left:12px;border-left:2px solid rgba(147,197,253,.34)}
+/* ④ 对话区内部留白与行距同步放宽 */
+.msgs{gap:28px!important;padding:22px 10px 26px!important}
+/* ==== REF-NOAV-BIG-END ==== */
+
+/* ==== ZZZ-DARK-THEME-START ==== */
+/* 绝区零风格（全部取自官方 Fairy-DSH style.js 的 --dsw-alias-* 变量）
+   ★ 用户要求：不要蓝紫渐变，要绝区零的感觉 → 改用官方青蓝主色。
+   官方原值：
+     bg-base #07101c / platform #0b1e34 / overlay #102944
+     label  #e8f2fa / icon #d7e7f3 / brand #62d4ff
+     btn    #1688ce / hover #2aa9e8 / nav-active #267fc4
+     elevated #103052 / ghost-active #17456f
+   字体（官方字体栈）：
+     "Inter","Segoe UI","PingFang SC","Microsoft YaHei" */
+:root{
+  --zzz2-bg:#07101c;
+  --zzz2-platform:#0b1e34;
+  --zzz2-overlay:#102944;
+  --zzz2-label:#e8f2fa;
+  --zzz2-icon:#d7e7f3;
+  --zzz2-brand:#62d4ff;
+  --zzz2-btn:#1688ce;
+  --zzz2-btn-hover:#2aa9e8;
+  --zzz2-nav-active:#267fc4;
+  --zzz2-elevated:#103052;
+  --zzz2-ghost:#17456f;
+  --zzz2-dim:#a8bac9;
+  --zzz2-font:"Inter","Segoe UI","PingFang SC","Microsoft YaHei","Helvetica Neue",Arial,sans-serif;
+}
+/* ── 全局字体换成官方字体栈 ── */
+body,button,input,textarea,select,
+.msg .bub,.msg .bub *,#brandTitle,h1,h2,h3,nav button,
+.composer,.composer *{
+  font-family:var(--zzz2-font)!important;
+}
+#brandTitle,header h1,.brand h1{
+  font-weight:750!important;letter-spacing:.5px!important;
+  color:var(--zzz2-label)!important;
+}
+/* ── 背景：官方 bg-base，去掉蓝紫径向 ── */
+body,.main,.content,.wrap{
+  background-color:var(--zzz2-bg)!important;
+  background-image:none!important;
+  color:var(--zzz2-label)!important;
+}
+/* 保留很淡的网格（绝区零那种界面感），但改为青色调、更淡 */
+body::before{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:
+    linear-gradient(rgba(98,212,255,.035) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(98,212,255,.035) 1px,transparent 1px);
+  background-size:36px 36px;
+}
+/* ── 侧栏：官方 platform 色 ── */
+nav,aside,.sidebar,.side{
+  background:var(--zzz2-platform)!important;
+  border-color:rgba(98,212,255,.16)!important;
+}
+nav button{color:var(--zzz2-icon)!important;border:none!important}
+nav button:hover{background:var(--zzz2-elevated)!important}
+nav button.on,nav button.active,nav button[data-active="true"]{
+  background:var(--zzz2-nav-active)!important;
+  color:#fff!important;
+}
+/* ── 文字颜色统一 ── */
+.msg .bub,.msg .bub *{color:var(--zzz2-label)!important}
+.msg .meta,.meta,.time{color:var(--zzz2-dim)!important}
+/* ── 按钮：官方 btn 色 ── */
+button{color:var(--zzz2-icon)}
+#send,.send,.primary{
+  background:var(--zzz2-btn)!important;
+  border:none!important;color:#fff!important;
+}
+#send:hover,.send:hover{background:var(--zzz2-btn-hover)!important}
+/* ── 输入区：官方 overlay 面板 ── */
+.composer,.inputbar,.input-wrap{
+  background:var(--zzz2-overlay)!important;
+  border:1px solid rgba(98,212,255,.22)!important;
+}
+#input,textarea,input{
+  background:transparent!important;
+  border:none!important;
+  color:var(--zzz2-label)!important;
+}
+/* ── 顶栏按钮弱化 ── */
+header,.topbar,.toolbar{background:transparent!important}
+/* ── 左右色条改用官方 brand 青 ── */
+.msg.user{border-right-color:rgba(98,212,255,.55)!important}
+.msg.ai{border-left-color:rgba(98,212,255,.3)!important}
+/* ── 滚动条 ── */
+*::-webkit-scrollbar{width:8px;height:8px}
+*::-webkit-scrollbar-thumb{
+  background:rgba(98,212,255,.22);border-radius:4px}
+/* ── 隐藏品牌标题里的任何残留图标 ── */
+#brandTitle svg,.brand .av,.brand svg{display:none!important}
+/* ==== ZZZ-DARK-THEME-END ==== */
+
+/* ==== ZZZ-FINAL-OVERRIDE-START ==== */
+/* 最终覆盖：确保没有任何蓝紫渐变残留
+   （老规则用 !important 设了 background-image，简写覆盖不掉，
+     所以这里显式 background-image:none） */
+nav button.on,nav button.active,nav button[data-active="true"],
+.btn,#send,.send,.primary,
+.msg.user .bub,.msg.ai .bub,.av,.pic{
+  background-image:none!important;
+}
+nav button.on,nav button.active,nav button[data-active="true"]{
+  background-color:#267fc4!important;
+}
+#send,.send,.primary,.btn{background-color:#1688ce!important}
+#send:hover,.send:hover,.primary:hover,.btn:hover{
+  background-color:#2aa9e8!important;
+}
+#brandTitle,.brand h1{color:#e8f2fa!important;background:none!important}
+/* ==== ZZZ-FINAL-OVERRIDE-END ==== */
+
+/* ==== ZZZ-BRAND-FIX-START ==== */
+/* 让品牌标题正常显示为纯文字（用户要求：
+   「图标干脆直接不要了吧，就单纯的 Fairy 控制台字就行」） */
+.brand h1,#brandTitle{
+  display:block!important;
+  background:none!important;
+  -webkit-background-clip:border-box!important;
+  background-clip:border-box!important;
+  -webkit-text-fill-color:currentColor!important;
+  color:#e8f2fa!important;
+  font-weight:750!important;
+  letter-spacing:.6px!important;
+  font-size:17px!important;
+}
+#brandTitle svg, #brandTitle .av, .brand svg, .brand .av{
+  display:none!important;
+}
+.brand p,#brandSub{
+  display:block!important;
+  font-size:11.5px!important;
+  color:#a8bac9!important;
+}
+/* 导航文字也要显示 */
+nav button span.t{display:inline!important}
+/* ==== ZZZ-BRAND-FIX-END ==== */
+
+/* ==== FONT-FIX-START ==== */
+/* 字体修正：标准宽度黑体（用户附图要求）
+   附图特征：笔画等宽无对比 / 标准宽度非窄体 / 字重 400 / 末端平切
+   ⇒ 中文优先苹方、微软雅黑；拉丁优先 Inter / Segoe UI（常规宽度）。
+   ✗ 不用 Arial Narrow / DIN Condensed（窄体） */
+:root{
+  --zzz2-font:"Inter","Segoe UI","PingFang SC","Microsoft YaHei",
+    "Helvetica Neue",Arial,"Noto Sans SC",sans-serif;
+}
+html,body,button,input,textarea,select,code,pre,
+.msg,.msg *,nav,nav *,h1,h2,h3,h4,p,span,div,a,label,
+.brand,.brand *,.bub,.bub *,table,th,td{
+  font-family:"Inter","Segoe UI","PingFang SC","Microsoft YaHei",
+    "Helvetica Neue",Arial,"Noto Sans SC",sans-serif!important;
+}
+/* 字重：正文 400（附图是 Regular），标题才加重 */
+.msg .bub,.msg .bub *{font-weight:400!important}
+#brandTitle,.brand h1{font-weight:600!important}
+nav button{font-weight:400!important}
+/* 取消任何字距压缩（窄体常伴随 letter-spacing 收紧） */
+.msg .bub,.msg .bub *{letter-spacing:0!important}
+/* ==== FONT-FIX-END ==== */
+
+/* ==== MODEL-PROBE-START ==== */
+/* 模型探测：按钮 + 候选下拉 */
+button.mini{
+  margin-left:8px;padding:2px 9px;font-size:11.5px;line-height:1.6;
+  border-radius:6px;border:1px solid rgba(98,212,255,.34);
+  background:rgba(98,212,255,.10);color:#62d4ff;cursor:pointer;
+  vertical-align:middle;font-weight:400;
+}
+button.mini:hover{background:rgba(98,212,255,.20)}
+button.mini:disabled{opacity:.5;cursor:default}
+.model-list{
+  margin-top:6px;display:none;flex-wrap:wrap;gap:6px;
+}
+.model-list.on{display:flex}
+.model-list .mi{
+  padding:3px 10px;font-size:12.5px;border-radius:6px;cursor:pointer;
+  background:rgba(98,212,255,.08);
+  border:1px solid rgba(98,212,255,.22);
+  color:#d7e7f3;
+}
+.model-list .mi:hover{background:rgba(98,212,255,.22);color:#fff}
+.model-list .mi.cur{border-color:#62d4ff;color:#62d4ff}
+.model-list .tip{font-size:12px;color:#a8bac9;padding:2px 0}
+/* ==== MODEL-PROBE-END ==== */
+
+/* ══ CONSOLE-V2：全局保存条 ══════════════════════════════════ */
+.gbar{display:flex;align-items:center;gap:8px;margin-left:auto}
+.gbar .msg{font-size:12px;color:#7ea6c8;max-width:220px;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.led-row{display:grid;grid-template-columns:96px 44px 1fr;gap:10px;
+  align-items:center}
+.led-row label{display:flex;flex-direction:column;gap:2px;font-size:13px}
+.led-row label em{font-style:normal;font-size:11px;color:#5f7e9c}
+.led-row input[type=color]{width:44px;height:28px;padding:0;border:1px solid
+  rgba(126,220,255,.28);border-radius:6px;background:#0a1c30;cursor:pointer}
+.led-row input.mono{font-family:ui-monospace,Consolas,monospace;font-size:13px;
+  background:#0a1c30;border:1px solid rgba(126,220,255,.28);border-radius:6px;
+  color:#e8f8ff;padding:5px 8px}
+.row input[type=range]{flex:1;accent-color:#62d4ff}
+.acts{display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap}
+.msg{font-size:12px;color:#7ea6c8}
+
+/* ══ CONSOLE-V2：手机适配（5 面板全功能）═══════════════════════ */
+@media (max-width:720px){
+  /* 侧栏变横向滚动条，不再占满左侧 */
+  .side{width:100%;flex-direction:row;overflow-x:auto;padding:6px 8px;
+    align-items:center;border-right:none;border-bottom:1px solid
+    rgba(126,220,255,.16)}
+  .side .brand{flex:0 0 auto;margin-right:10px}
+  .side .brand p{display:none}
+  .side nav{display:flex;flex-direction:row;gap:4px;flex:1}
+  .side nav button{flex:0 0 auto;padding:8px 10px}
+  .side nav button span.t{display:inline;font-size:12px}
+  .side .foot{display:none}
+  .wrap{flex-direction:column}
+  .main{padding:10px}
+  .panel h2{font-size:17px}
+  /* 表单行变单列，便于手指点 */
+  .row{grid-template-columns:1fr;gap:6px}
+  .led-row{grid-template-columns:1fr 44px;row-gap:6px}
+  /* ★ 手机上没法放音 ⇒ 隐藏音色试听 */
+  #tryBtn,#tryPlay,.try-audio{display:none!important}
+  /* 对话区留够高度 */
+  #msgs{max-height:calc(100vh - 230px)}
+}
+
+
+/* ══ CONSOLE-V2b：侧栏全局保存条 ══════════════════════ */
+.gbar-side{display:flex;flex-direction:column;gap:6px;width:100%;
+  padding-top:10px;margin-top:auto;border-top:1px solid
+  rgba(126,220,255,.14)}
+.gbar-side button{width:100%}
+.gbar-side .msg{font-size:11px;color:#7ea6c8;min-height:14px;
+  text-align:center;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap}
+/* 手机上侧栏是横条，保存条也横过来 */
+@media (max-width:720px){
+  .gbar-side{flex-direction:row;border-top:none;border-left:1px solid
+    rgba(126,220,255,.14);padding-top:0;padding-left:10px;margin-left:8px;
+    margin-top:0;width:auto;flex:0 0 auto}
+  .gbar-side button{width:auto;white-space:nowrap}
+  .gbar-side .msg{display:none}
+}
+</style>
+<style id="SKIN-CSS">
+    .skin-cards{display:grid;grid-template-columns:1fr 1fr;gap:14px;
+      margin:16px 0}
+    .skin-card{background:var(--dsw-alias-bg-module-platform,#0b1e34);
+      border:1px solid rgba(126,220,255,.18);border-radius:10px;
+      padding:16px;text-align:center;cursor:pointer;transition:.15s;
+      position:relative}
+    .skin-card:hover{border-color:rgba(126,220,255,.42)}
+    .skin-card.cur{border-color:#62d4ff;
+      box-shadow:0 0 0 1px #62d4ff inset,0 0 18px rgba(98,212,255,.22)}
+    .skin-card.cur::after{content:"当前";position:absolute;top:8px;right:10px;
+      font-size:11px;color:#62d4ff;border:1px solid #62d4ff;border-radius:4px;
+      padding:1px 6px}
+    .skin-face{height:118px;display:flex;align-items:center;
+      justify-content:center}
+    .skin-name{font-size:16px;color:#e8f2fa;margin-top:6px}
+    .skin-desc{font-size:12.5px;color:#8ba8bf;line-height:1.6;
+      margin-top:6px}
+    .skin-srv{font-size:11.5px;color:#62d4ff;margin-top:8px;
+      opacity:.85}
+    .skin-actions{display:flex;align-items:center;gap:12px;margin-top:6px}
+    @media (max-width:760px){
+      .skin-cards{grid-template-columns:1fr}
+    }
+    </style>
+<!-- ── CONSOLE-FINAL：连接状态条 + 每页保存条 ── -->
+<style id="CONSOLE-FINAL-CSS">
+.connbar{margin:8px 0 2px;padding:8px 12px;border-radius:8px;font-size:13px;
+  border:1px solid #244;background:#0d1a22;color:#8fb;display:flex;
+  align-items:center;gap:8px}
+.connbar.ok{border-color:#1d5;background:#0d2018;color:#7fdc9f}
+.connbar.bad{border-color:#a33;background:#2a1014;color:#ff9b9b}
+.connbar .dot{width:8px;height:8px;border-radius:50%;background:#7ea6c8;
+  flex:0 0 auto}
+.connbar.ok .dot{background:#3fdb7f;box-shadow:0 0 8px #3fdb7f}
+.connbar.bad .dot{background:#e55}
+.pagebar{display:flex;align-items:center;gap:8px;margin:0 0 12px;
+  padding:8px 0;border-bottom:1px solid #1b2b38}
+.pagebar .pbm{font-size:12px;color:#7ea6c8}
+</style>
+<style id="V3-CSS">
+.joywrap{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+#joyPad{background:#0a1418;border:1px solid #1d4d5a;border-radius:14px;cursor:grab;touch-action:none}
+#joyPad:active{cursor:grabbing}
+.joyhint{color:#6f8f99;font-size:12px;line-height:1.9}
+.joyread{display:flex;gap:20px;margin-top:10px;color:#8fd6e6;font-family:ui-monospace,monospace;font-size:13px}
+.joyread b{color:#4fd1e8}
+.modesel{background:#0d1a1f;color:#8fd6e6;border:1px solid #1d4d5a;border-radius:6px;padding:3px 6px;font-size:12px;margin-left:8px}
+.led-row em{display:none}
+</style>
+<style id="V4-CSS">
+.rnote{margin:8px 0 0;padding:8px 12px;border-radius:8px;font-size:12.5px;line-height:1.85;border-left:3px solid}
+.rnote.no{background:rgba(0,128,96,.10);border-color:#12b886;color:#7fd6b8}
+.rnote.yes{background:rgba(200,140,0,.10);border-color:#e0a020;color:#e8c07a}
+.rnote b{color:#fff}
+.rnote code{background:rgba(255,255,255,.08);padding:1px 5px;border-radius:4px;font-size:12px}
+</style>
+<style id="V5-CSS">
+.switchbig{display:inline-flex;align-items:center;gap:10px;padding:12px 20px;
+  border-radius:10px;border:1.5px solid #4fd1e8;background:rgba(79,209,232,.12);
+  color:#9be8f7;font-size:15px;font-weight:600;cursor:pointer;transition:.15s}
+.switchbig:hover{background:rgba(79,209,232,.24);color:#fff}
+.switchbig:active{transform:scale(.98)}
+.switchbig .k{font-size:11px;color:#6f8f99;font-weight:400;display:block;margin-top:2px}
+.toggle{position:relative;display:inline-block;width:52px;height:28px;vertical-align:middle}
+.toggle input{opacity:0;width:0;height:0}
+.toggle .sl{position:absolute;cursor:pointer;inset:0;background:#22333a;
+  border-radius:28px;transition:.2s;border:1px solid #2c4750}
+.toggle .sl:before{content:"";position:absolute;height:20px;width:20px;left:3px;top:3px;
+  background:#7a8f96;border-radius:50%;transition:.2s}
+.toggle input:checked+.sl{background:rgba(79,209,232,.3);border-color:#4fd1e8}
+.toggle input:checked+.sl:before{transform:translateX(24px);background:#4fd1e8}
+.mrow{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.mrow .lbl{color:#cfe8ee;font-size:14px}
+.mrow .st{font-size:12px;color:#6f8f99}
+</style>
+
+<!-- ══ MOBILE-FIX：手机端终极覆盖（★ 一套断点，覆盖旧的两套）══ -->
+<style id="MOBILE-FIX-CSS">
+/* ★ 为什么放最后 + !important：
+     本文件里已有 @media(760px) 和 @media(720px) 两套互相打架的规则，
+     且它们的优先级与选择器相当。放最后 + !important 才能稳定胜出。
+     （根因：两套断点在手机宽度下同时命中，规则互相覆盖 ⇒ 布局崩） */
+
+@media (max-width: 820px) {
+
+  /* ── ① 根容器：明确纵向布局，禁止横向溢出 ── */
+  html, body {
+    overflow-x: hidden !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  /* ★★ 关键修正：真实容器是 .app（不是 .wrap）
+       原样式： .app{display:flex;height:100vh;overflow:hidden}
+         ├─ .side (固定 210px)  └─ .main
+       ⇒ 手机上必须改成纵向 + 高度自适应，否则布局崩（用户截图现象） */
+  .app {
+    display: flex !important;
+    flex-direction: column !important;
+    height: auto !important;
+    min-height: 100vh !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+    overflow-y: visible !important;
+  }
+
+  /* ── ② 侧栏 → 顶部横向滚动条 ── */
+  .side {
+    width: 100% !important;
+    max-width: 100% !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    align-items: center !important;
+    padding: 8px 10px !important;
+    gap: 8px !important;
+    border-right: none !important;
+    border-bottom: 1px solid rgba(126,220,255,.16) !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  /* 品牌区：手机上一行放得下，别换行 */
+  .side .brand {
+    flex: 0 0 auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    white-space: nowrap !important;
+  }
+  .side .brand h1 {
+    font-size: 14px !important;
+    white-space: nowrap !important;
+    overflow: visible !important;
+  }
+  .side .brand p { display: none !important; }
+
+  /* 导航按钮：横排、不换行 */
+  .side nav {
+    display: flex !important;
+    flex-direction: row !important;
+    flex: 0 1 auto !important;
+    overflow-x: auto !important;
+    gap: 6px !important;
+    padding: 0 !important;
+  }
+  .side nav button {
+    flex: 0 0 auto !important;
+    padding: 8px 12px !important;
+    white-space: nowrap !important;
+  }
+  .side nav button span.t { display: inline !important; font-size: 12.5px !important; }
+
+  /* 侧栏底部保存条：横过来、不换行 */
+  .side .foot { display: none !important; }
+  .gbar-side {
+    flex-direction: row !important;
+    flex: 0 0 auto !important;
+    width: auto !important;
+    margin: 0 0 0 8px !important;
+    padding: 0 0 0 10px !important;
+    border-top: none !important;
+    border-left: 1px solid rgba(126,220,255,.14) !important;
+    gap: 6px !important;
+  }
+  .gbar-side button { width: auto !important; white-space: nowrap !important; }
+  .gbar-side .msg { display: none !important; }
+
+  /* ── ③ 主区：全宽 ── */
+  .main {
+    width: 100% !important;
+    max-width: 100% !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    overflow-x: hidden !important;
+    overflow-y: visible !important;
+  }
+  /* .content 是滚动容器（.app 不再 overflow:hidden ⇒ 这里放开高度） */
+  .content {
+    max-height: none !important;
+    overflow-y: visible !important;
+  }
+
+  /* 顶部条：允许换行，别把按钮挤出去 */
+  .top {
+    padding: 10px 14px !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+  .top h2 { font-size: 15px !important; }
+  .top .sp { display: none !important; }   /* 占位符在手机上没意义 */
+  .gbar {
+    margin-left: 0 !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+    width: 100% !important;
+  }
+  .gbar .msg {
+    max-width: 100% !important;
+    font-size: 11.5px !important;
+  }
+
+  /* 内容区 */
+  .content {
+    padding: 14px 14px 24px !important;
+    overflow-x: hidden !important;
+  }
+
+  /* ── ④ 表单/卡片：手机单列 ── */
+  .panel h2 { font-size: 16px !important; }
+  .row { grid-template-columns: 1fr !important; gap: 6px !important; }
+  .led-row { grid-template-columns: 1fr 44px !important; row-gap: 6px !important; }
+  .skin-cards { grid-template-columns: 1fr !important; }
+  input, select, textarea { max-width: 100% !important; box-sizing: border-box !important; }
+
+  /* ★ 手机上没法放音 ⇒ 隐藏音色试听 */
+  #tryBtn, #tryPlay, .try-audio { display: none !important; }
+
+  /* 对话区留够高度 */
+  #msgs { max-height: calc(100vh - 260px) !important; }
+
+  /* ── ⑤ 装饰元素：手机上全隐藏（否则压到内容上）── */
+  /* 装饰元素（用户截图里右侧压在内容上的蓝色竖条） */
+  .deco, .deco-side, .side-deco, .gb-deco,
+  body > .deco, .app > .deco, .main > .deco {
+    display: none !important;
+  }
+
+  /* ── ⑥ 表格/代码块防溢出 ── */
+  table { display: block !important; overflow-x: auto !important; max-width: 100% !important; }
+  pre, code { max-width: 100% !important; overflow-x: auto !important; }
+
+  /* ── ⑦ 按钮够大（手指点）── */
+  button { min-height: 34px !important; }
+}
+
+/* ★ 超窄屏（≤400px）再收紧一点 */
+@media (max-width: 400px) {
+  .side nav button { padding: 7px 9px !important; }
+  .side nav button span.t { font-size: 11.5px !important; }
+  .content { padding: 10px 10px 20px !important; }
+  .top { padding: 8px 10px !important; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- 侧边栏 -->
+  <aside class="side">
+    <div class="brand">
+      <h1 id="brandTitle">Fairy 控制台</h1>
+      <p id="brandSub">StackChan · 本地服务</p>
+    </div>
+    <nav id="nav">
+      <button class="on" data-tab="chat"><span class="ico">💬</span><span class="t">对话</span></button>
+      <button data-tab="llm"><span class="ico">🔑</span><span class="t">大模型</span></button>
+      <button data-tab="persona"><span class="ico">🎭</span><span class="t">人设</span></button>
+      <button data-tab="voice"><span class="ico">🎤</span><span class="t">音色</span></button>
+      <button data-tab="skin"><span class="ico">🎨</span><span class="t">皮肤</span></button>
+      <button data-tab="led"><span class="ico">💡</span><span class="t">灯光</span></button>
+      <button data-tab="motor"><span class="ico">🎯</span><span class="t">舵机</span></button>
+      <button data-tab="sys"><span class="ico">⚙️</span><span class="t">系统</span></button>
+    </nav>
+    <div class="side-foot">
+      <span class="dot" id="srvDot"></span><span id="srvTxt">检测中…</span>
+    </div>
+
+    <!-- ── 全局保存（CONSOLE-V2）：侧栏常驻，所有面板可见 ── -->
+    <div class="gbar-side">
+      <span id="gbarMsg" class="msg"></span>
+      <button class="ghost sm" onclick="saveAll()">保存</button>
+      <button class="btn sm" onclick="saveAll(true)">保存并重启</button>
+    </div>
+  </aside>
+
+  <!-- 主区 -->
+  <div class="main">
+    <div class="top">
+      <h2 id="tabTitle">💬 对话</h2>
+      <span class="sp"></span>
+      <span class="stat" id="statInfo"></span>
+    </div>
+    <div class="content">
+
+      <!-- 对话 -->
+      <div id="tab-chat" class="chatwrap">
+        <div class="chattop">
+          <button class="ghost sm" onclick="loadChat(true)">🔄 刷新</button>
+          <button class="ghost sm" onclick="toggleAuto()" id="autoBtn">⏸ 暂停轮询</button>
+          <span class="sp"></span>
+          <button class="ghost sm" onclick="clearWebCtx()">清空网页上下文</button>
+          <button class="danger sm" onclick="clearChat()">清空全部记录</button>
+        </div>
+        <div id="eyeStage"><!-- ==== FAIRY-EYE-START ==== -->
+<!-- ============================================================
+  Fairy 主眼 —— 1:1 提取自 fairy-gif/fairy-v7.html
+  · 已移除：故障切片 + feTurbulence 位移滤镜（吃 CPU）
+  · 已改名：dsh-fairy- → fv7-（class 与 data 属性同步改）
+  · 尺寸交由宿主容器控制（宽度自适应父元素）
+  状态：给根元素设 data-state=idle|thinking|speaking
+  ============================================================ -->
+
+
+<!-- ---- SVG 三层：halo / pulse / main ---- -->
+<div class="fv7-host">
+<div class="fv7-root" id="fv7Eye" data-fv7-mascot-root="true" data-state="idle">
+  <div class="fv7-stage">
+
+<svg class="fv7-halo fv7-halo-layer" viewBox="-180 -70 520 320" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" role="presentation">
+	<defs>
+		<radialGradient id="fv7-halo-layer-fade" gradientUnits="userSpaceOnUse" color-interpolation="linearRGB" cx="80" cy="80" r="124">
+			<stop offset="0" stop-color="black"/>
+			<stop offset=".44" stop-color="black"/>
+			<stop offset=".45" stop-color="white" stop-opacity=".08"/>
+			<stop offset=".46" stop-color="white" stop-opacity=".30"/>
+			<stop offset=".47" stop-color="white" stop-opacity=".65"/>
+			<stop offset=".48" stop-color="white"/>
+			<stop offset=".52" stop-color="white" stop-opacity=".72"/>
+			<stop offset=".56" stop-color="white" stop-opacity=".56"/>
+			<stop offset=".60" stop-color="white" stop-opacity=".44"/>
+			<stop offset=".65" stop-color="white" stop-opacity=".30"/>
+			<stop offset=".71" stop-color="white" stop-opacity=".19"/>
+			<stop offset=".77" stop-color="white" stop-opacity=".135"/>
+			<stop offset=".83" stop-color="white" stop-opacity=".09"/>
+			<stop offset=".89" stop-color="white" stop-opacity=".058"/>
+			<stop offset=".90" stop-color="white" stop-opacity=".052"/>
+			<stop offset=".91" stop-color="white" stop-opacity=".046"/>
+			<stop offset=".92" stop-color="white" stop-opacity=".039"/>
+			<stop offset=".93" stop-color="white" stop-opacity=".032"/>
+			<stop offset=".94" stop-color="white" stop-opacity=".025"/>
+			<stop offset=".95" stop-color="white" stop-opacity=".019"/>
+			<stop offset=".96" stop-color="white" stop-opacity=".013"/>
+			<stop offset=".97" stop-color="white" stop-opacity=".0075"/>
+			<stop offset=".98" stop-color="white" stop-opacity=".0035"/>
+			<stop offset=".99" stop-color="white" stop-opacity=".001"/>
+			<stop offset="1" stop-color="white" stop-opacity="0"/>
+		</radialGradient>
+		<mask id="fv7-halo-layer-mask" mask-type="luminance" maskUnits="userSpaceOnUse" maskContentUnits="userSpaceOnUse" x="-260" y="-120" width="680" height="440">
+			<rect x="-260" y="-120" width="680" height="440" fill="url(#fv7-halo-layer-fade)"/>
+		</mask>
+	      <clipPath id="fv7-slice-1"><rect x="4" y="12" width="152" height="25"/></clipPath>
+      <clipPath id="fv7-slice-2"><rect x="4" y="37" width="152" height="28"/></clipPath>
+      <clipPath id="fv7-slice-3"><rect x="4" y="65" width="152" height="26"/></clipPath>
+      <clipPath id="fv7-slice-4"><rect x="4" y="91" width="152" height="30"/></clipPath>
+      <clipPath id="fv7-slice-5"><rect x="4" y="121" width="152" height="27"/></clipPath>
+    </defs>
+	<g mask="url(#fv7-halo-layer-mask)" opacity=".99"><path d="M-96.61 -33.75h368.45M-96.16 -32.75h366.78M-95.68 -31.75h365.14M-95.21 -30.75h363.55M-94.76 -29.75h362.05M-94.37 -28.75h360.67M-94.05 -27.75h359.44M-93.85 -26.75h358.39M-98.42 -18.75h358.49M-99.92 -17.75h359.63M-101.62 -16.75h360.98M-103.50 -15.75h362.53M-105.55 -14.75h364.24M-107.74 -13.75h366.10M-110.03 -12.75h368.05M-112.41 -11.75h370.09M-114.82 -10.75h372.15M-117.24 -9.75h374.22M-119.62 -8.75h376.25M-121.93 -7.75h378.21M-124.13 -6.75h380.06M-126.17 -5.75h381.77M-128.02 -4.75h383.32M-129.65 -3.75h384.68M-131.03 -2.75h385.83M-129.09 6.25h385.76M-127.28 7.25h384.76M-125.20 8.25h383.64M-122.89 9.25h382.43M-120.39 10.25h381.17M-117.73 11.25h379.87M-114.96 12.25h378.58M-112.11 13.25h377.33M-109.24 14.25h376.14M-106.37 15.25h375.05M-103.57 16.25h374.07M-100.86 17.25h373.22M-98.28 18.25h372.51M-95.88 19.25h371.97M-93.67 20.25h371.59M-91.69 21.25h371.37M-89.96 22.25h371.31M-88.50 23.25h371.40M-87.31 24.25h371.62M-86.40 25.25h371.95M-85.78 26.25h372.38M-85.44 27.25h372.87M-85.36 28.25h373.39M-85.54 29.25h373.92M-85.95 30.25h374.42M-86.58 31.25h374.86M-87.39 32.25h375.21M-88.35 33.25h375.43M-89.45 34.25h375.50M-90.63 35.25h375.38M-91.89 36.25h375.07M-93.17 37.25h374.55M-94.45 38.25h373.79M-95.71 39.25h372.81M-96.92 40.25h371.58M-98.06 41.25h370.13M-99.10 42.25h368.47M-100.04 43.25h366.60M-100.85 44.25h364.57M-101.54 45.25h362.40M-102.11 46.25h360.12M-109.48 66.25h358.93M-110.88 67.25h362.93M-112.40 68.25h367.22M-114.02 69.25h371.73M-115.71 70.25h376.41M-117.44 71.25h381.18M-119.18 72.25h385.97M-106.15 95.25h385.36M-103.18 96.25h380.13M-100.23 97.25h374.84M-97.35 98.25h369.60M-94.59 99.25h364.45M-91.97 100.25h359.49M-103.19 124.25h359.39M-104.89 125.25h362.12M-106.45 126.25h364.71M-107.84 127.25h367.13M-109.07 128.25h369.35M-110.12 129.25h371.36M-110.99 130.25h373.15M-111.68 131.25h374.72M-112.20 132.25h376.07M-112.57 133.25h377.21M-112.79 134.25h378.17M-112.90 135.25h378.94M-112.90 136.25h379.58M-112.82 137.25h380.09M-112.69 138.25h380.51M-112.52 139.25h380.88M-112.36 140.25h381.22M-112.21 141.25h381.57M-112.11 142.25h381.95M-112.06 143.25h382.39M-112.10 144.25h382.91M-112.23 145.25h383.54M-112.46 146.25h384.29M-112.80 147.25h385.17M-113.11 172.25h384.75M-110.80 173.25h380.83M-108.33 174.25h376.62M-105.74 175.25h372.18M-103.06 176.25h367.57M-100.34 177.25h362.84M-97.60 178.25h358.05" fill="none" stroke="currentColor" stroke-width=".62" stroke-linecap="butt" opacity="0.750"/><path d="M-93.77 -25.75h357.55M-93.85 -24.75h356.93M-94.10 -23.75h356.55M-94.55 -22.75h356.42M-95.19 -21.75h356.55M-96.05 -20.75h356.94M-97.13 -19.75h357.59M-102.55 47.25h357.78M-102.88 48.25h355.42M-103.09 49.25h353.09M-103.22 50.25h350.84M-103.27 51.25h348.72M-103.27 52.25h346.79M-103.24 53.25h345.09M-103.19 54.25h343.66M-103.16 55.25h342.57M-103.18 56.25h341.83M-103.25 57.25h341.51M-103.41 58.25h341.61M-103.68 59.25h342.16M-104.07 60.25h343.19M-104.59 61.25h344.68M-105.27 62.25h346.66M-106.09 63.25h349.09M-107.07 64.25h351.97M-108.20 65.25h355.26M-89.55 101.25h354.78M-87.35 102.25h350.37M-85.40 103.25h346.33M-83.73 104.25h342.70M-82.37 105.25h339.52M-81.32 106.25h336.83M-80.59 107.25h334.65M-80.20 108.25h332.99M-80.13 109.25h331.86M-80.38 110.25h331.26M-80.93 111.25h331.16M-81.77 112.25h331.56M-82.88 113.25h332.42M-84.22 114.25h333.70M-85.77 115.25h335.37M-87.49 116.25h337.38M-89.35 117.25h339.67M-91.31 118.25h342.21M-93.33 119.25h344.92M-95.38 120.25h347.77M-97.43 121.25h350.69M-99.43 122.25h353.63M-101.36 123.25h356.54M-94.90 179.25h353.28M-92.27 180.25h348.60M-89.76 181.25h344.07M-87.41 182.25h339.77M-85.25 183.25h335.76M-83.32 184.25h332.10" fill="none" stroke="currentColor" stroke-width=".62" stroke-linecap="butt" opacity="0.625"/><path d="M-132.12 -1.75h386.75M-132.91 -0.75h387.44M-133.37 0.25h387.88M-133.50 1.25h388.08M-133.29 2.25h388.04M-132.73 3.25h387.78M-131.84 4.25h387.29M-130.62 5.25h386.62M-120.91 73.25h390.71M-122.58 74.25h395.33M-124.16 75.25h399.76M-125.61 76.25h403.91M-126.91 77.25h407.73M-128.02 78.25h411.15M-122.13 89.25h411.73M-119.88 90.25h408.28M-117.42 91.25h404.37M-114.78 92.25h400.05M-112.00 93.25h395.40M-109.10 94.25h390.48M-113.26 148.25h386.17M-113.82 149.25h387.31M-114.49 150.25h388.56M-115.26 151.25h389.92M-116.10 152.25h391.36M-117.00 153.25h392.86M-117.94 154.25h394.39M-118.89 155.25h395.91M-119.83 156.25h397.38M-120.73 157.25h398.76M-121.56 158.25h400.01M-122.28 159.25h401.09M-122.88 160.25h401.96M-123.32 161.25h402.56M-123.57 162.25h402.87M-123.62 163.25h402.84M-123.45 164.25h402.46M-123.03 165.25h401.68M-122.37 166.25h400.50M-121.45 167.25h398.90M-120.26 168.25h396.88M-118.83 169.25h394.44M-117.14 170.25h391.59M-115.23 171.25h388.35" fill="none" stroke="currentColor" stroke-width=".62" stroke-linecap="butt" opacity="0.875"/><path d="M-128.91 79.25h414.12M-129.56 80.25h416.57M-129.93 81.25h418.48M-130.02 82.25h419.80M-129.81 83.25h420.50M-129.29 84.25h420.58M-128.46 85.25h420.03M-127.31 86.25h418.85M-125.87 87.25h417.05M-124.13 88.25h414.67" fill="none" stroke="currentColor" stroke-width=".62" stroke-linecap="butt" opacity="1.000"/><path d="M-81.66 185.25h328.86M-80.28 186.25h326.08M-79.22 187.25h323.82M-78.49 188.25h322.12M-78.09 189.25h321.01M-78.05 190.25h320.51M-78.35 191.25h320.63M-78.99 192.25h321.38M-79.96 193.25h322.76M-81.24 194.25h324.74" fill="none" stroke="currentColor" stroke-width=".62" stroke-linecap="butt" opacity="0.500"/></g>
+</svg>
+<svg class="fv7-pulse-layer" viewBox="-160 -160 480 480" xmlns="http://www.w3.org/2000/svg" role="presentation">
+	<g class="fv7-lash-pulse" fill="none" stroke="#f4fdff">
+		<g class="fv7-lash-pulse-wave">
+			<circle cx="80" cy="80" r="52" stroke-width="20" stroke-opacity=".05"/>
+			<circle cx="80" cy="80" r="52" stroke-width="16" stroke-opacity=".06"/>
+			<circle cx="80" cy="80" r="52" stroke-width="12" stroke-opacity=".08"/>
+			<circle cx="80" cy="80" r="52" stroke-width="8" stroke-opacity=".10"/>
+			<circle cx="80" cy="80" r="52" stroke-width="4.5" stroke-opacity=".09"/>
+		</g>
+	</g>
+</svg>
+    <div class="fv7-float">
+<svg class="fv7-main" viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg" role="presentation">
+	<defs>
+		<!-- Color, glow, scanline, and horizontal-only displacement resources. -->
+		<linearGradient id="fv7-outer-gradient" x1=".2" y1="0" x2=".8" y2="1">
+			<stop stop-color="#4053f0"/>
+			<stop offset=".54" stop-color="#3045dc"/>
+			<stop offset="1" stop-color="#3d50c8"/>
+		</linearGradient>
+		<!-- One static radial field replaces separate halo strokes, avoiding alpha seams. -->
+		<radialGradient id="fv7-sclera-halo-gradient" gradientUnits="userSpaceOnUse" cx="80" cy="80" r="56" color-interpolation="linearRGB">
+			<stop offset=".82" stop-color="#ffffff" stop-opacity="0"/>
+			<stop offset=".864" stop-color="#ffffff" stop-opacity=".22"/>
+			<stop offset=".875" stop-color="#ffffff" stop-opacity=".28"/>
+			<stop offset=".89" stop-color="#ffffff" stop-opacity=".19"/>
+			<stop offset=".91" stop-color="#ffffff" stop-opacity=".11"/>
+			<stop offset=".94" stop-color="#ffffff" stop-opacity=".07"/>
+			<stop offset=".96" stop-color="#ffffff" stop-opacity=".035"/>
+			<stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+		</radialGradient>
+		<radialGradient id="fv7-outer-halo-gradient" gradientUnits="userSpaceOnUse" cx="80" cy="80" r="79" color-interpolation="linearRGB">
+			<stop offset=".80" stop-color="var(--fv7-outer-halo-color)" stop-opacity="0"/>
+			<stop offset=".84" stop-color="var(--fv7-outer-halo-color)" stop-opacity=".10"/>
+			<stop offset=".868" stop-color="var(--fv7-outer-halo-color)" stop-opacity=".28"/>
+			<stop offset=".90" stop-color="var(--fv7-outer-halo-color)" stop-opacity=".18"/>
+			<stop offset=".95" stop-color="var(--fv7-outer-halo-color)" stop-opacity=".06"/>
+			<stop offset=".99" stop-color="var(--fv7-outer-halo-color)" stop-opacity=".02"/>
+			<stop offset="1" stop-color="var(--fv7-outer-halo-color)" stop-opacity="0"/>
+		</radialGradient>
+		<radialGradient id="fv7-highlight-halo-gradient" gradientUnits="userSpaceOnUse" cx="98" cy="100.5" r="18" color-interpolation="linearRGB">
+			<stop offset=".53" stop-color="#f5f8fd" stop-opacity="0"/>
+			<stop offset=".56" stop-color="#f5f8fd" stop-opacity=".16"/>
+			<stop offset=".611" stop-color="#f5f8fd" stop-opacity=".43"/>
+			<stop offset=".72" stop-color="#f5f8fd" stop-opacity=".19"/>
+			<stop offset=".77" stop-color="#f5f8fd" stop-opacity=".12"/>
+			<stop offset=".83" stop-color="#f5f8fd" stop-opacity=".055"/>
+			<stop offset=".89" stop-color="#f5f8fd" stop-opacity=".02"/>
+			<stop offset=".96" stop-color="#f5f8fd" stop-opacity=".004"/>
+			<stop offset="1" stop-color="#f5f8fd" stop-opacity="0"/>
+		</radialGradient>
+		<pattern id="fv7-lines" width="4" height="4" patternUnits="userSpaceOnUse">
+			<!-- Keep the internal scanline texture present but quieter against the eye. -->
+			<rect width="4" height="1" fill="#c9f8ff" opacity=".055"/>
+		</pattern>
+			<!-- Blue is forced to 0.5 so the displacement map moves pixels horizontally only. -->
+			<!-- Horizontal glitch noise is intentionally low-resolution. The map never
+			     moves pixels vertically, so its filter cache needs less vertical coverage
+			     and resolution while interpolation keeps the tear continuous. -->
+			<filter id="fv7-interference" x="-30%" y="0%" width="160%" height="100%" filterRes="96 72" color-interpolation-filters="sRGB">
+			<feTurbulence id="fv7-noise" type="fractalNoise" baseFrequency=".012 .72" numOctaves="1" seed="1" result="noise"/>
+			<feColorMatrix in="noise" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 0 0 .5  0 0 0 1 0" result="horizontal-noise"/>
+			<feDisplacementMap id="fv7-displace" in="SourceGraphic" in2="horizontal-noise" scale="5" xChannelSelector="R" yChannelSelector="B"/>
+		</filter>
+		<clipPath id="fv7-disc-clip"><circle cx="80" cy="80" r="67"/></clipPath>
+		<clipPath id="fv7-thinking-eye-clip">
+			<path class="fv7-thinking-clip-shape" d="M20 60 Q80 90 140 60 V160 H20 Z"/>
+			<!-- This fixed lower region prevents curve scaling from clipping the lower eye. -->
+			<rect x="0" y="108" width="160" height="52"/>
+		</clipPath>
+		<!-- A shallow reversed arc gives Fairy the gentle, slightly drooped brow. -->
+		<clipPath id="fv7-comforting-eye-clip">
+			<path class="fv7-comforting-clip-shape" d="M20 60 Q80 30 140 60 V160 H20 Z"/>
+			<rect x="0" y="108" width="160" height="52"/>
+		</clipPath>
+		<!-- These five rectangles are resized slightly for every block-glitch event. -->
+		
+		
+		
+		
+		
+		</defs>
+	
+		<g class="fv7-body">
+	<!-- Stable outer radial halo stays outside the fault signal so it is not
+	     filtered or duplicated by the block-glitch clones. -->
+		<circle class="fv7-outer-halo" cx="80" cy="80" r="79" fill="url(#fv7-outer-halo-gradient)"/>
+	<g class="fv7-signal" data-fault-source="true">
+	<!-- The complete normal visual. Glitch modes filter or slice this entire group. -->
+	<g id="fv7-image" class="fv7-image">
+		<circle class="fv7-outer-disc" cx="80" cy="80" r="68" fill="url(#fv7-outer-gradient)" stroke="#f2fbff" stroke-width="1.2"/>
+	<!-- Dark circle + square form the four rotating lashes / eyelids. -->
+	<g class="fv7-corners" clip-path="url(#fv7-disc-clip)" fill="#2b3388">
+		<!-- Slightly open the eye: reduce the lid ring without changing its silhouette. -->
+		<circle cx="80" cy="80" r="51.75"/>
+		<rect x="37" y="37" width="86" height="86" rx="2" transform="rotate(3 80 80)"/>
+	</g>
+
+	<!-- Eye anatomy: sclera, layered eyeball, pupil, then highlight. -->
+	<g class="fv7-eye">
+			<!-- One animated group keeps the vector rim pixel-locked to the sclera. -->
+			<g class="fv7-sclera">
+				<circle cx="80" cy="80" r="48" fill="#eef0f5"/>
+				<circle class="fv7-sclera-halo" cx="80" cy="80" r="56" fill="url(#fv7-sclera-halo-gradient)"/>
+				<!-- A thin contact rim closes subpixel seams at the sclera/halo boundary. -->
+				<circle class="fv7-sclera-contact" cx="80" cy="80" r="48" fill="none" stroke="#ffffff" stroke-width="0.8" stroke-opacity=".16"/>
+			</g>
+		<g class="fv7-eyeball">
+			<circle class="fv7-layer-three" cx="80" cy="80" r="33" fill="#9daee0"/>
+			<circle class="fv7-layer-two" cx="80" cy="80" r="24.15" fill="#eef0f5"/>
+			<circle class="fv7-layer-two" cx="80" cy="80" r="23.5" fill="#317bcf"/>
+			<circle class="fv7-layer-one" cx="80" cy="80" r="16.6" fill="none" stroke="#f5f8fd" stroke-width=".1"/>
+			<circle class="fv7-layer-one" cx="80" cy="80" r="16" fill="#3b3d8a"/>
+				<g class="fv7-highlight fv7-layer-two">
+					<circle class="fv7-highlight-halo" cx="98" cy="100.5" r="18" fill="url(#fv7-highlight-halo-gradient)"/>
+					<circle class="fv7-highlight-glow" cx="98" cy="100.5" r="11" fill="#f5f8fd"/>
+			</g>
+		</g>
+	</g>
+	<!-- Full-eye flicker layer stays outside the scaled eye group and is not part
+	     of the fault clone source; it covers the disc and brows only. -->
+	<circle class="fv7-eye-flicker" cx="80" cy="80" r="68.6" fill="#ffffff" pointer-events="none"/>
+
+	<g clip-path="url(#fv7-disc-clip)" opacity=".42">
+		<rect class="fv7-scanlines" x="12" y="10" width="136" height="146" fill="url(#fv7-lines)"/>
+	</g>
+	</g>
+	<!-- Five complete-image clones clipped into horizontal blocks for left/right displacement. -->
+	
+	</g>
+	</g>
+		      <g class="fv7-glitch-blocks">
+        <use href="#fv7-image" class="fv7-glitch-1" clip-path="url(#fv7-slice-1)"/>
+        <use href="#fv7-image" class="fv7-glitch-2" clip-path="url(#fv7-slice-2)"/>
+        <use href="#fv7-image" class="fv7-glitch-3" clip-path="url(#fv7-slice-3)"/>
+        <use href="#fv7-image" class="fv7-glitch-4" clip-path="url(#fv7-slice-4)"/>
+        <use href="#fv7-image" class="fv7-glitch-5" clip-path="url(#fv7-slice-5)"/>
+      </g>
+</svg>
+    </div>
+  </div>
+</div>
+</div>
+<!-- ==== FAIRY-EYE-END ==== -->
+</div>
+        <div class="msgs" id="msgs"><div class="empty">还没有对话<br><span style="font-size:12px">在下面输入，或对着设备说「Hi Fairy」</span></div></div>
+        <div class="composer">
+          <textarea id="input" rows="1" placeholder="和 Fairy 说点什么…（Enter 发送，Shift+Enter 换行）"></textarea>
+          <button class="btn" id="sendBtn" onclick="send()">发送</button>
+        </div>
+      </div>
+
+      <!-- 大模型 -->
+      <div id="tab-llm" class="hidden">
+              <div class="acts pagebar"><button class="btn sm" onclick="savePage('llm')">保存</button><button class="ghost sm" onclick="savePage('llm',true)">保存并重启</button><span class="msg pbm" id="pb_llm"></span></div><div class="card">
+          <h3>🔑 大模型（LLM）</h3>
+          <p class="hint">设备与网页对话都走这里。改完需重启生效。</p>
+<div class="rnote yes">⚠️ <b>需要重启服务器</b>才会生效。原因：服务器进程<b>启动时读一次</b>配置（<code>app.py load_config()</code>），之后一直用内存里的旧值。<br>⇒ 保存后请点底部 <b>「保存并重启」</b>（约 20~30 秒）。</div>
+          <div class="row">
+            <div><label>模型名<button type="button" class="mini" id="probeBtn" onclick="probeModels()" title="从 Base URL 拉取可用模型列表">探测</button></label><input id="llm_model" placeholder="deepseek-chat"><div id="modelList" class="model-list"></div></div>
+            <div><label>Base URL</label><input id="llm_base" placeholder="https://api.deepseek.com"></div>
+          </div>
+          <label>API Key <span class="masked" id="llm_key_masked"></span></label>
+          <input id="llm_key" type="password" placeholder="留空 = 不修改">
+          <div class="row">
+            <div><label>temperature（0~2，越高越活泼）</label>
+              <input id="llm_temp" type="number" step="0.1" min="0" max="2"></div>
+            <div><label>max_tokens（回复上限）</label>
+              <input id="llm_max" type="number" min="1"></div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>👁️ 视觉模型（VLLM）</h3>
+          <p class="hint">设备「看图说话」用。通常与 LLM 同一个服务。</p>
+          <label>API Key <span class="masked" id="vllm_key_masked"></span></label>
+          <input id="vllm_key" type="password" placeholder="留空 = 不修改">
+        </div>
+      </div>
+
+      <!-- 人设 -->
+      <div id="tab-persona" class="hidden">
+              <div class="acts pagebar"><button class="btn sm" onclick="savePage('persona')">保存</button><button class="ghost sm" onclick="savePage('persona',true)">保存并重启</button><span class="msg pbm" id="pb_persona"></span></div><div class="card">
+          <h3>🎭 人设 Prompt</h3>
+          <p class="hint">Fairy 的性格设定，设备与网页对话都用它。<b>改完必须重启</b>。</p>
+<div class="rnote yes">⚠️ <b>需要重启服务器</b>才会生效。人设 prompt 在启动时被载入。保存后点底部<b>「保存并重启」</b>。</div>
+          <textarea id="prompt" rows="22" spellcheck="false"></textarea>
+          <div class="hint" id="promptLen" style="margin:9px 0 0"></div>
+        </div>
+      </div>
+
+      <!-- 音色 -->
+      <div id="tab-voice" class="hidden">
+              <div class="acts pagebar"><button class="btn sm" onclick="savePage('voice')">保存</button><button class="ghost sm" onclick="savePage('voice',true)">保存并重启</button><span class="msg pbm" id="pb_voice"></span></div><div class="card">
+          <h3>🎤 音色（GPT-SoVITS）</h3>
+          <p class="hint">参考音频决定音色；台词必须与音频内容一致。</p>
+<div class="rnote yes">⚠️ <b>需要重启服务器</b>才会生效。TTS 参考音频/参数在启动时载入。保存后点底部<b>「保存并重启」</b>。</div>
+          <label>参考音频路径</label>
+          <input id="tts_ref" placeholder="<仓库根>/fairy-ref/xxx.wav">
+          <div class="row">
+            <div><label>语言</label>
+              <select id="tts_lang">
+                <option value="zh">中文 zh</option>
+                <option value="auto">自动 auto（需 pyopenjtalk）</option>
+                <option value="en">英文 en</option>
+                <option value="ja">日文 ja</option>
+              </select></div>
+            <div><label>&nbsp;</label>
+              <button class="ghost" style="width:100%" onclick="listRefs()">列出可用音频</button></div>
+          </div>
+          <div id="refList" class="hint"></div>
+          <label>参考音频台词（原文）</label>
+          <textarea id="tts_text" rows="2" spellcheck="false"></textarea>
+          <div class="credit">
+            🎨 音色来源：本项目的 Fairy 语音模型由 B站 UP主
+            <b>「白菜工厂1145号员工」</b> 制作 / 提供。
+          </div>
+        </div>
+      </div>
+
+      <!-- 系统 -->
+      
+    <!-- ── 灯光（CONSOLE-V2）────────────────────────────── -->
+    <!-- SKIN-PANEL-V1 -->
+      <div id="tab-skin" class="hidden">
+        <h2>皮肤</h2>
+      <div class="acts pagebar"><button class="btn sm" onclick="savePage('skin')">保存</button><button class="ghost sm" onclick="savePage('skin',true)">保存并重启</button><span class="msg pbm" id="pb_skin"></span></div>
+        <p class="hint">
+          两套皮肤<b>都装在机器里</b>，随时可以换。<b>切换会自动换服务器</b>
+          并重启设备（约 10 秒），因为人格跟服务器是绑在一起的。
+        </p>
+
+        <div class="skin-cards">
+          <div class="skin-card" id="card-fairy">
+            <div class="skin-face">
+              <svg viewBox="0 0 160 160" width="132" height="132"
+                   xmlns="http://www.w3.org/2000/svg"
+                   role="presentation">
+                <defs>
+                  <linearGradient id="fx-outer" x1=".2" y1="0" x2=".8"
+                                  y2="1">
+                    <stop stop-color="#4053f0"/>
+                    <stop offset=".54" stop-color="#3045dc"/>
+                    <stop offset="1" stop-color="#3d50c8"/>
+                  </linearGradient>
+                  <radialGradient id="fx-sclera-halo"
+                    gradientUnits="userSpaceOnUse" cx="80" cy="80" r="56"
+                    color-interpolation="linearRGB">
+                    <stop offset=".82" stop-color="#fff" stop-opacity="0"/>
+                    <stop offset=".857" stop-color="#fff" stop-opacity=".22"/>
+                    <stop offset=".875" stop-color="#fff" stop-opacity=".28"/>
+                    <stop offset=".89" stop-color="#fff" stop-opacity=".19"/>
+                    <stop offset=".91" stop-color="#fff" stop-opacity=".11"/>
+                    <stop offset=".94" stop-color="#fff" stop-opacity=".07"/>
+                    <stop offset=".96" stop-color="#fff" stop-opacity=".035"/>
+                    <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+                  </radialGradient>
+                  <radialGradient id="fx-outer-halo"
+                    gradientUnits="userSpaceOnUse" cx="80" cy="80" r="79"
+                    color-interpolation="linearRGB">
+                    <stop offset=".80" stop-color="#c9efff"
+                          stop-opacity="0"/>
+                    <stop offset=".84" stop-color="#c9efff"
+                          stop-opacity=".10"/>
+                    <stop offset=".869" stop-color="#c9efff"
+                          stop-opacity=".28"/>
+                    <stop offset=".90" stop-color="#c9efff"
+                          stop-opacity=".18"/>
+                    <stop offset=".95" stop-color="#c9efff"
+                          stop-opacity=".06"/>
+                    <stop offset=".99" stop-color="#c9efff"
+                          stop-opacity=".02"/>
+                    <stop offset="1" stop-color="#c9efff" stop-opacity="0"/>
+                  </radialGradient>
+                  <radialGradient id="fx-hl-halo"
+                    gradientUnits="userSpaceOnUse" cx="98" cy="100.5" r="18"
+                    color-interpolation="linearRGB">
+                    <stop offset=".53" stop-color="#f5f8fd"
+                          stop-opacity="0"/>
+                    <stop offset=".56" stop-color="#f5f8fd"
+                          stop-opacity=".16"/>
+                    <stop offset=".611" stop-color="#f5f8fd"
+                          stop-opacity=".43"/>
+                    <stop offset=".72" stop-color="#f5f8fd"
+                          stop-opacity=".19"/>
+                    <stop offset=".77" stop-color="#f5f8fd"
+                          stop-opacity=".12"/>
+                    <stop offset=".83" stop-color="#f5f8fd"
+                          stop-opacity=".055"/>
+                    <stop offset=".89" stop-color="#f5f8fd"
+                          stop-opacity=".02"/>
+                    <stop offset=".96" stop-color="#f5f8fd"
+                          stop-opacity=".004"/>
+                    <stop offset="1" stop-color="#f5f8fd" stop-opacity="0"/>
+                  </radialGradient>
+                  <pattern id="fx-lines" width="4" height="4"
+                           patternUnits="userSpaceOnUse">
+                    <rect width="4" height="1" fill="#c9f8ff"
+                          opacity=".055"/>
+                  </pattern>
+                  <clipPath id="fx-disc">
+                    <circle cx="80" cy="80" r="67"/>
+                  </clipPath>
+                </defs>
+
+                <!-- 外光晕 -->
+                <circle cx="80" cy="80" r="79"
+                        fill="url(#fx-outer-halo)"/>
+                <!-- 外盘 -->
+                <circle cx="80" cy="80" r="68"
+                        fill="url(#fx-outer)" stroke="#f2fbff"
+                        stroke-width="1.2"/>
+                <!-- 睫毛 / 眼睑（深蓝圆 + 方，形成四角） -->
+                <g clip-path="url(#fx-disc)" fill="#2b3388">
+                  <circle cx="80" cy="80" r="51.75"/>
+                  <rect x="37" y="37" width="86" height="86" rx="2"
+                        transform="rotate(3 80 80)"/>
+                </g>
+                <!-- 眼白 + 光晕 + 接触边 -->
+                <circle cx="80" cy="80" r="48" fill="#eef0f5"/>
+                <circle cx="80" cy="80" r="56"
+                        fill="url(#fx-sclera-halo)"/>
+                <circle cx="80" cy="80" r="48" fill="none"
+                        stroke="#fff" stroke-width=".8"
+                        stroke-opacity=".16"/>
+                <!-- 眼球分层 → 虹膜 → 瞳孔 -->
+                <circle cx="80" cy="80" r="33" fill="#9daee0"/>
+                <circle cx="80" cy="80" r="24.15" fill="#eef0f5"/>
+                <circle cx="80" cy="80" r="23.5" fill="#317bcf"/>
+                <circle cx="80" cy="80" r="16.6" fill="none"
+                        stroke="#f5f8fd" stroke-width=".1"/>
+                <circle cx="80" cy="80" r="16" fill="#3b3d8a"/>
+                <!-- 高光（右下，官方 highlightCenter 98,100.5） -->
+                <circle cx="98" cy="100.5" r="18"
+                        fill="url(#fx-hl-halo)"/>
+                <circle cx="98" cy="100.5" r="11" fill="#f5f8fd"/>
+                <!-- 扫描线 -->
+                <g clip-path="url(#fx-disc)" opacity=".42">
+                  <rect x="12" y="10" width="136" height="146"
+                        fill="url(#fx-lines)"/>
+                </g>
+              </svg>
+            </div>
+            <div class="skin-name">Fairy</div>
+            <div class="skin-desc">自己的形象<br>专属人格 + 专属音色</div>
+            <div class="skin-srv" id="srv-fairy">服务器：自建</div>
+          </div>
+
+          <div class="skin-card" id="card-geometry">
+            <div class="skin-face">
+              <svg viewBox="0 0 120 90" width="150" height="112">
+                <rect x="2" y="2" width="116" height="86" rx="4"
+                      fill="#000" stroke="#333" stroke-width="1"/>
+                <ellipse cx="42" cy="40" rx="11" ry="20" fill="#fff"/>
+                <ellipse cx="78" cy="40" rx="11" ry="20" fill="#fff"/>
+                <rect x="50" y="66" width="20" height="5" rx="2.5"
+                      fill="#fff"/>
+              </svg>
+            </div>
+            <div class="skin-name">官方小表情</div>
+            <div class="skin-desc">黑底几何脸<br>官方服务器 · 能带出门</div>
+            <div class="skin-srv" id="srv-geometry">服务器：官方</div>
+          </div>
+        </div>
+
+
+        <p class="hint" style="margin-top:14px">
+        </p>
+      </div>
+<div id="tab-led" class="hidden">
+      <h2>灯光</h2>
+      <p class="hint">Fairy 身上 12 颗 RGB。每个对话状态一种颜色。
+        设备在线时点<b>应用到设备</b>立刻生效；
+        <b>保存</b>是把配置写进服务器（下次开机由设备读取）。</p>
+<div class="rnote no">✅ <b>不需要重启服务器</b>。点「保存」会：① 写进服务器配置 ② 设备在线时<b>直接下发到设备</b>（设备自己存 NVS，断电也不丢）。<br>若设备不在线，只写服务器；等设备上线后点一次「保存」即可补下发。</div>
+      <div class="card">
+        <div class="row led-row"><label>待机<em>呼吸</em></label><input type="color" id="led_idle" data-state="idle" onchange="onLedPick(this)"><input class="mono" id="led_idle_txt" placeholder="#RRGGBB" oninput="onLedText(this)"><select class="modesel" id="led_mode_idle" data-state="idle" onchange="onLedMode(this)"><option value="static">常亮</option><option value="breath">呼吸</option></select></div>
+        <div class="row led-row"><label>连接中<em>呼吸</em></label><input type="color" id="led_connecting" data-state="connecting" onchange="onLedPick(this)"><input class="mono" id="led_connecting_txt" placeholder="#RRGGBB" oninput="onLedText(this)"><select class="modesel" id="led_mode_connecting" data-state="connecting" onchange="onLedMode(this)"><option value="static">常亮</option><option value="breath">呼吸</option></select></div>
+        <div class="row led-row"><label>聆听<em>常亮</em></label><input type="color" id="led_listening" data-state="listening" onchange="onLedPick(this)"><input class="mono" id="led_listening_txt" placeholder="#RRGGBB" oninput="onLedText(this)"><select class="modesel" id="led_mode_listening" data-state="listening" onchange="onLedMode(this)"><option value="static">常亮</option><option value="breath">呼吸</option></select></div>
+        <div class="row led-row"><label>说话<em>常亮</em></label><input type="color" id="led_speaking" data-state="speaking" onchange="onLedPick(this)"><input class="mono" id="led_speaking_txt" placeholder="#RRGGBB" oninput="onLedText(this)"><select class="modesel" id="led_mode_speaking" data-state="speaking" onchange="onLedMode(this)"><option value="static">常亮</option><option value="breath">呼吸</option></select></div>
+        <div class="row led-row"><label>通知<em>常亮</em></label><input type="color" id="led_notifying" data-state="notifying" onchange="onLedPick(this)"><input class="mono" id="led_notifying_txt" placeholder="#RRGGBB" oninput="onLedText(this)"><select class="modesel" id="led_mode_notifying" data-state="notifying" onchange="onLedMode(this)"><option value="static">常亮</option><option value="breath">呼吸</option></select></div>
+        <div class="row led-row"><label>错误<em>常亮</em></label><input type="color" id="led_error" data-state="error" onchange="onLedPick(this)"><input class="mono" id="led_error_txt" placeholder="#RRGGBB" oninput="onLedText(this)"><select class="modesel" id="led_mode_error" data-state="error" onchange="onLedMode(this)"><option value="static">常亮</option><option value="breath">呼吸</option></select></div>
+        <div class="row led-row"><label>升级<em>呼吸</em></label><input type="color" id="led_upgrading" data-state="upgrading" onchange="onLedPick(this)"><input class="mono" id="led_upgrading_txt" placeholder="#RRGGBB" oninput="onLedText(this)"><select class="modesel" id="led_mode_upgrading" data-state="upgrading" onchange="onLedMode(this)"><option value="static">常亮</option><option value="breath">呼吸</option></select></div>
+      </div>
+      <div id="ledConn" class="connbar"></div>
+      <div class="acts">
+        <button class="ghost sm" onclick="ledApply()">应用到设备</button>
+        <button class="ghost sm" onclick="ledReset()">恢复默认配色</button>
+        <span id="ledMsg" class="msg"></span>
+      </div>
+    </div>
+
+    <!-- ── 舵机（CONSOLE-V2）────────────────────────────── -->
+    <div id="tab-motor" class="hidden">
+      <h2>舵机</h2>
+      <p class="hint">Fairy 的脖子：<b>yaw</b> 左右转头（-128~128，0=正前）、
+        <b>pitch</b> 抬头低头（3~87，约 45=水平）。
+        拖滑块 → 点<b>转到此角度</b>看效果 → 满意后点<b>设为默认角度</b>。</p>
+<div class="rnote no">✅ <b>不需要重启服务器</b>。「转到此角度」实时生效；「设为默认角度」会存进<b>设备 NVS</b>（下次开机就是这个姿势）。</div>
+      <div class="card">
+        <h3>🎮 摇杆（一次调横纵）</h3>
+        <div class="joywrap">
+          <canvas id="joyPad" width="260" height="260"></canvas>
+          <div class="joyhint">拖圆点 → 松手即下发到设备<br>滑块与摇杆自动同步</div>
+        </div>
+        <div class="joyread"><span>yaw <b id="joyYaw">0</b>°</span><span>pitch <b id="joyPitch">45</b>°</span></div>
+      </div>
+      <div class="card">
+        <div class="row">
+          <label>yaw（左右）</label>
+          <input type="range" id="sv_yaw" min="-128" max="128" step="1" value="0"
+                 oninput="onServoSlide()">
+          <span class="mono" id="sv_yaw_txt">0°</span>
+        </div>
+        <div class="row">
+          <label>pitch（俯仰）</label>
+          <input type="range" id="sv_pitch" min="3" max="87" step="1" value="45"
+                 oninput="onServoSlide()">
+          <span class="mono" id="sv_pitch_txt">45°</span>
+        </div>
+      </div>
+      <div class="card">
+        <h3>🐾 待机自动转头</h3>
+        <div class="mrow">
+          <label class="toggle">
+            <input type="checkbox" id="autoMotion" onchange="onAutoMotion(this)">
+            <span class="sl"></span>
+          </label>
+          <span class="lbl">开启后，它闲下来会自己随机轻轻转一下头</span>
+          <span class="st" id="autoMotionMsg"></span>
+        </div>
+        <p class="hint" style="margin-top:10px">关掉后完全不动，
+          设置存进<b>设备 NVS</b>（断电不丢）。不用重启服务器。</p>
+      </div>
+      <div id="motorConn" class="connbar"></div>
+      <div class="acts">
+        <button class="btn sm" onclick="setHomeAngle()">设为默认角度</button>
+        <button class="ghost sm" onclick="motorMove()">转到此角度</button>
+        <button class="ghost sm" onclick="motorCenter()">回到默认</button>
+        <span id="motorMsg" class="msg"></span>
+      </div>
+      <p class="hint">调滑块 → 点<b>转到此角度</b>看效果 → 满意后点
+        <b>设为默认角度</b>（存进设备，下次开机就是这个姿势）。</p>
+    </div>
+
+      <div id="tab-sys" class="hidden">
+              <div class="acts pagebar"><button class="btn sm" onclick="savePage('sys')">保存</button><button class="ghost sm" onclick="savePage('sys',true)">保存并重启</button><span class="msg pbm" id="pb_sys"></span></div><div class="card">
+          <h3>📁 配置</h3>
+          <p class="hint" id="cfgPath">—</p>
+<div class="rnote yes">⚠️ <b>多数设置需要重启</b>才生效。保存后点底部 <b>「保存并重启」</b>（约 20~30 秒）。</div>
+          <button class="ghost sm" onclick="save(false)">仅保存</button>
+          <button class="btn sm" onclick="save(true)">保存并重启</button>
+          <button class="ghost sm" onclick="restart()">只重启</button>
+        </div>
+        <div class="card">
+          <h3>💾 备份</h3>
+          <p class="hint">每次保存自动备份到 backup/ 目录，可随时回滚。</p>
+          <div id="bakList" class="hint">—</div>
+        </div>
+        <div class="card">
+          <h3>ℹ️ 说明</h3>
+          <p class="hint" style="line-height:1.85">
+            · 本控制台<b>只允许本机访问</b>（安全考虑）<br>
+            · API Key 在界面<b>打码显示</b>，明文不会回传<br>
+            · 改人设 / 音色后需<b>重启</b>才生效<br>
+            · 对话记录存在 <code>data/chat_logs/</code>
+          </p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+let TOAST_T = null, AUTO = true, LAST_TS = 0, SENDING = false;
+const SEEN = new Set();
+
+function toast(msg, kind){
+  const t = $('toast');
+  t.textContent = msg; t.className = 'toast show ' + (kind || 'ok');
+  clearTimeout(TOAST_T);
+  TOAST_T = setTimeout(()=>{ t.className = 'toast'; }, 4000);
+}
+async function api(path, opts){
+  const r = await fetch(path, Object.assign(
+    {headers:{'Content-Type':'application/json'}}, opts||{}));
+  let j;
+  try { j = await r.json(); } catch(e){ j = {ok:false, error:'响应非 JSON'}; }
+  if(!r.ok && j.error) throw new Error(j.error);
+  return j;
+}
+const esc = s => (s||'').replace(/[&<>"]/g,
+  c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ── Fairy 主眼图标（★ 参数取自 docs/fairy-eye-icon.svg，
+   即 fairy-eye.html 里 v7 逐像素实测的六层配色）──
+   19 #3c3e8a / 28 #337dcf / 41 #9dafe0 / 60 #eef0f5 / 83 #303a8d / 102 #394cde
+
+   ★ 小尺寸适配（实测数据驱动）：
+     22px 时六层各环只有 0.8~2px 宽，肉眼会糊成一个实心圆
+     （实测：最内两层仅差 0.8px）。所以按尺寸分三档：
+       ≥ 96px  → 完整六层（原汁原味）
+       48~96px → 五层（去掉 #337dcf，它只差 2px 看不出）
+        < 48px → 三层（外蓝环 / 深紫环 / 白环）+ 深色瞳 + 高光
+     这样任意尺寸下都能看出"同心环 + 高光"的眼睛感。
+*/
+const EYE_FULL = [
+  [102, '#394cde'], [83, '#303a8d'], [60, '#eef0f5'],
+  [41, '#9dafe0'], [28, '#337dcf'], [19, '#3c3e8a']
+];
+const EYE_MID = [
+  [102, '#394cde'], [83, '#303a8d'], [60, '#eef0f5'],
+  [41, '#9dafe0'], [19, '#3c3e8a']
+];
+const EYE_SMALL = [
+  [102, '#394cde'], [83, '#303a8d'], [60, '#eef0f5'], [30, '#3c3e8a']
+];
+let _eyeSeq = 0;
+/* ==== REF-ICON-START ==== */
+/* 小图标 = 直接用【现成主眼】的几何参数（mascot-geometry.js 原值）
+   outer 68 / sclera 48 / layer-three 33 / layer-two 24.15 /
+   layer-one 16.6 / pupil 16 / highlight 98,100.5 r11
+   ★ 不发明新图形：小尺寸时按"可见性"裁剪最细的层，保证不糊成一团。 */
+const EYE_ICON_LAYERS = [
+  /* [半径, 填充,        描边,      描边宽, 最小可见尺寸] */
+  [68,    '#3d50c8',   '#f2fbff',  1.4,    14],   /* 外盘 */
+  [51.75, '#2b3388',   null,       0,      30],   /* 尖齿底 */
+  [48,    '#eef0f5',   null,       0,      12],   /* 巩膜 */
+  [33,    '#9daee0',   null,       0,      22],   /* 三层 */
+  [24.15, '#eef0f5',   null,       0,      20],   /* 二层白 */
+  [23.5,  '#317bcf',   null,       0,      18],   /* 二层蓝 */
+  [16,    '#3b3d8a',   null,       0,      12],   /* 瞳 */
+];
+function fairyEye(size){
+  size = size || 34;
+  const uid = 'fe' + (++_eyeSeq);
+  const S = 160, K = (size/2 - 0.5) / 68;     /* 68 = 外盘半径（官方值）*/
+  let inner = '';
+  /* 高光（官方 98,100.5 r11）——尺寸够才画 */
+  if (size >= 16){
+    inner += '<circle cx="'+(98*K - 0)+'" cy="'+0+'" r="'+(11*K)+
+             '" fill="#f5f8fd" transform="translate('+
+             ((80 - 80*K) + (98-80)*K - (98-80)*K)+','+
+             ((80 - 80*K))+')"/>';
+  }
+  let circles = '';
+  for (const L of EYE_ICON_LAYERS){
+    const [r, fill, stroke, sw, minSize] = L;
+    if (size < minSize) continue;
+    circles += '<circle r="'+(r*K).toFixed(2)+'" fill="'+fill+'"'+
+      (stroke ? ' stroke="'+stroke+'" stroke-width="'+(sw*K).toFixed(2)+'"'
+              : '')+'/>';
+  }
+  /* 高光用绝对坐标（官方 98,100.5 r11），随 K 缩放 */
+  const hl = size >= 16
+    ? '<circle cx="'+(98*K).toFixed(2)+'" cy="'+(100.5*K).toFixed(2)+
+      '" r="'+(11*K).toFixed(2)+'" fill="#f5f8fd"/>' +
+      '<circle cx="'+(98*K).toFixed(2)+'" cy="'+(100.5*K).toFixed(2)+
+      '" r="'+(18*K).toFixed(2)+'" fill="none"/>'
+    : '';
+  return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 '+
+    size+' '+size+'" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'+
+    '<g transform="translate('+(size/2)+','+(size/2)+')">'+
+      circles + hl +
+    '</g></svg>';
+}
+/* ==== REF-ICON-END ==== */
+
+function fairyMark(size){
+  size = size || 34;
+  const u = 'fm' + (++_eyeSeq);
+  const s = size;
+  const cx = s/2, cy = s/2;
+  return '<svg width="'+s+'" height="'+s+'" viewBox="0 0 '+s+' '+s+
+    '" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'+
+    '<defs><radialGradient id="'+u+'" cx="38%" cy="32%" r="78%">'+
+      '<stop offset="0%" stop-color="#5b8dff"/>'+
+      '<stop offset="60%" stop-color="#2b4fd0"/>'+
+      '<stop offset="100%" stop-color="#182c86"/>'+
+    '</radialGradient></defs>'+
+    '<circle cx="'+cx+'" cy="'+cy+'" r="'+(s/2-0.5)+
+      '" fill="url(#'+u+')"/>'+
+    /* 白色月牙（用两个圆做差：白圆 + 偏移的底色圆）*/
+    '<circle cx="'+(s*0.42)+'" cy="'+(s*0.5)+'" r="'+(s*0.21)+
+      '" fill="#ffffff"/>'+
+    '<circle cx="'+(s*0.50)+'" cy="'+(s*0.47)+'" r="'+(s*0.19)+
+      '" fill="#2b4fd0"/>'+
+    /* 右下小点 */
+    '<circle cx="'+(s*0.72)+'" cy="'+(s*0.70)+'" r="'+(s*0.055)+
+      '" fill="#ffffff" opacity=".92"/>'+
+    '</svg>';
+}
+function userMark(size){
+  size = size || 34;
+  const s = size;
+  return '<svg width="'+s+'" height="'+s+'" viewBox="0 0 '+s+' '+s+
+    '" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'+
+    '<circle cx="'+(s/2)+'" cy="'+(s/2)+'" r="'+(s/2-0.5)+
+      '" fill="#31456b"/>'+
+    '<circle cx="'+(s/2)+'" cy="'+(s*0.40)+'" r="'+(s*0.15)+
+      '" fill="#dfe8f7"/>'+
+    '<path d="M'+(s*0.24)+' '+(s*0.86)+' a'+(s*0.26)+' '+(s*0.26)+
+      ' 0 0 1 '+(s*0.52)+' 0 Z" fill="#dfe8f7"/>'+
+    '</svg>';
+}
+/* ==== REF-AVATAR-END ==== */
+
+function renderMsgs(msgs, replace){
+  const box = $('msgs');
+  if(replace){ box.innerHTML = ''; SEEN.clear(); }
+  if(!msgs.length){
+    if(replace) box.innerHTML =
+      '<div class="empty">还没有对话<br><span style="font-size:12px">在下面输入，或对着设备说「Hi Fairy」</span></div>';
+    return;
+  }
+  if(box.querySelector('.empty')) box.innerHTML = '';
+  let added = false;
+  for(const m of msgs){
+    const key = m.ts + '|' + m.role + '|' + (m.content||'').slice(0,24);
+    if(SEEN.has(key)) continue;
+    SEEN.add(key); added = true;
+    const isUser = m.role === 'user';
+    const src = m.device === 'web' ? '<span class="src">网页</span>' : '';
+    const d = document.createElement('div');
+    d.className = 'msg ' + (isUser ? 'user' : 'ai');
+    d.innerHTML =
+      '<div class="av">' + (isUser ? '<span></span>' : '') + '</div>' +
+      '<div><div class="bub">' + esc(m.content) + '</div>' +
+      '<div class="meta">' + src + '<span>' + esc(m.time||'') + '</span></div></div>';
+    box.appendChild(d);
+  }
+  if(added) box.scrollTop = box.scrollHeight;
+}
+async function loadChat(replace){
+  try{
+    const q = (!replace && LAST_TS) ? ('?since=' + LAST_TS) : '?limit=200';
+    const d = await api('/admin/api/chat' + q);
+    if(!d.ok) throw new Error(d.error||'读取失败');
+    const msgs = d.messages || [];
+    if(msgs.length) LAST_TS = msgs[msgs.length-1].ts;
+    renderMsgs(msgs, replace);
+    $('statInfo').textContent = '共 ' + SEEN.size + ' 条对话';
+  }catch(e){
+    $('srvDot').classList.remove('on');
+    $('srvTxt').textContent = '离线';
+  }
+}
+function toggleAuto(){
+  AUTO = !AUTO;
+  $('autoBtn').textContent = AUTO ? '⏸ 暂停轮询' : '▶ 开始轮询';
+}
+setInterval(()=>{ if(AUTO) loadChat(false); }, 3000);
+/* ★ 眼睛状态轮询：跟服务器真实状态走 */
+let LAST_STATE = '';
+async function pollState(){
+  try{
+    const d = await api('/admin/api/state');
+    const st = d.state || 'idle';
+    if(st !== LAST_STATE){
+      const prev = LAST_STATE;
+      LAST_STATE = st;
+      const el = document.getElementById('fv7Eye');
+      if(el) el.dataset.state = st;
+      /* ★ 状态真的变化了 → 播两段式抖动切换（抄自 Fairy-DSH） */
+      if(prev !== '' && typeof fairyTransitionTo === 'function'){
+        fairyTransitionTo(st);
+      }
+    }
+  }catch(e){}
+}
+setInterval(pollState, 700);
+pollState();
+
+/* ── 发消息 ── */
+function autoGrow(){
+  const t = $('input');
+  t.style.height = 'auto';
+  t.style.height = Math.min(t.scrollHeight, 150) + 'px';
+}
+$('input').addEventListener('input', autoGrow);
+$('input').addEventListener('keydown', e => {
+  if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); send(); }
+});
+async function send(){
+  if(SENDING) return;
+  const text = $('input').value.trim();
+  if(!text) return;
+  SENDING = true;
+  $('sendBtn').disabled = true;
+
+  const box = $('msgs');
+  if(box.querySelector('.empty')) box.innerHTML = '';
+  const now = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  const tstr = now.getFullYear()+'-'+pad(now.getMonth()+1)+'-'+pad(now.getDate())+
+    ' '+pad(now.getHours())+':'+pad(now.getMinutes())+':'+pad(now.getSeconds());
+  const u = document.createElement('div');
+  u.className = 'msg user';
+  u.innerHTML = '<div class="av">' + '<span></span>' + '</div><div><div class="bub">'+esc(text)+
+    '</div><div class="meta"><span class="src">网页</span><span>'+tstr+'</span></div></div>';
+  box.appendChild(u);
+  const pend = document.createElement('div');
+  pend.className = 'msg ai';
+  pend.innerHTML = '<div class="av">' + '' + '</div><div><div class="bub">'+
+    '<span class="typing"><i></i><i></i><i></i></span></div></div>';
+  box.appendChild(pend);
+  box.scrollTop = box.scrollHeight;
+  $('input').value = ''; autoGrow();
+
+  try{
+    const d = await api('/admin/api/chat/send',
+      {method:'POST', body: JSON.stringify({text})});
+    if(!d.ok) throw new Error(d.error || '发送失败');
+    pend.remove();
+    LAST_TS = 0;
+    await loadChat(true);
+  }catch(e){
+    pend.remove();
+    toast('发送失败：' + e.message, 'err');
+    $('input').value = text; autoGrow();
+  }finally{
+    SENDING = false;
+    $('sendBtn').disabled = false;
+    $('input').focus();
+  }
+}
+async function clearWebCtx(){
+  try{ const d = await api('/admin/api/chat/web-clear', {method:'POST'});
+    toast(d.msg||'已清空网页上下文','ok'); }
+  catch(e){ toast('失败：'+e.message,'err'); }
+}
+async function clearChat(){
+  if(!confirm('确定清空全部对话记录？（设备和网页的都会清掉）')) return;
+  try{ const d = await api('/admin/api/chat/clear', {method:'POST'});
+    SEEN.clear(); LAST_TS = 0; await loadChat(true);
+    toast(d.msg||'已清空','ok'); }
+  catch(e){ toast('失败：'+e.message,'err'); }
+}
+
+/* ── 配置读写 ── */
+async function load(){
+  try{
+    const d = await api('/admin/api/config');
+    if(!d.ok) throw new Error(d.error||'读取失败');
+    $('cfgPath').textContent = '配置文件：' + d.paths.config;
+    $('brandSub').textContent = 'StackChan · ' + (d.llm.model_name||'—');
+    $('llm_model').value = d.llm.model_name||'';
+    $('llm_base').value  = d.llm.base_url||'';
+    $('llm_temp').value  = d.llm.temperature;
+    $('llm_max').value   = d.llm.max_tokens;
+    $('llm_key_masked').textContent =
+      d.llm.api_key_set ? '（当前 '+d.llm.api_key_masked+'）' : '（未设置）';
+    $('vllm_key_masked').textContent =
+      d.vllm.api_key_set ? '（当前 '+d.vllm.api_key_masked+'）' : '（未设置）';
+    $('llm_key').value = ''; $('vllm_key').value = '';
+    $('prompt').value = d.prompt||''; updLen();
+    $('tts_ref').value  = d.tts.ref_audio_path||'';
+    $('tts_text').value = d.tts.prompt_text||'';
+    $('tts_lang').value = d.tts.text_lang||'zh';
+    $('srvDot').classList.add('on'); $('srvTxt').textContent = '在线';
+  }catch(e){
+    $('srvDot').classList.remove('on'); $('srvTxt').textContent = '离线';
+    toast('读取配置失败：'+e.message,'err');
+  }
+}
+function updLen(){ $('promptLen').textContent = '当前 ' + $('prompt').value.length + ' 字符'; }
+$('prompt').addEventListener('input', updLen);
+
+async function listRefs(){
+  try{
+    const d = await api('/admin/api/refs');
+    if(!d.items.length){ $('refList').textContent = '（目录为空：'+d.dir+'）'; return; }
+    $('refList').innerHTML = '点击填入： ' + d.items.map(it =>
+      `<a href="#" onclick="pick('${it.path}');return false" style="color:var(--accent2);text-decoration:none">${it.name}</a> <span class="masked">${it.size_kb}KB</span>`).join(' · ');
+  }catch(e){ toast('列出失败：'+e.message,'err'); }
+}
+function pick(p){ $('tts_ref').value = p; toast('已填入参考音频','ok'); }
+
+async function save(andRestart){
+  const body = {
+    llm:{ model_name:$('llm_model').value.trim(), base_url:$('llm_base').value.trim(),
+          temperature:$('llm_temp').value, max_tokens:$('llm_max').value,
+          api_key:$('llm_key').value.trim() },
+    vllm:{ api_key:$('vllm_key').value.trim() },
+    prompt:$('prompt').value,
+    tts:{ ref_audio_path:$('tts_ref').value.trim(),
+          prompt_text:$('tts_text').value.trim(), text_lang:$('tts_lang').value }
+  };
+  try{
+    const d = await api('/admin/api/config', {method:'POST', body:JSON.stringify(body)});
+    if(!d.ok) throw new Error(d.error||'保存失败');
+    if(d.changed.length) toast('已保存：'+d.changed.join('、'),'ok');
+    else toast(d.msg||'没有改动','warn');
+    if(andRestart) await restart(); else await load();
+  }catch(e){ toast('保存失败：'+e.message,'err'); }
+}
+async function restart(){
+  try{
+    const d = await api('/admin/api/restart', {method:'POST'});
+    if(!d.ok) throw new Error(d.error||'重启失败');
+    toast(d.msg,'warn');
+    let n = d.wait||30;
+    const t = setInterval(()=>{
+      n--;
+      if(n<=0){ clearInterval(t); toast('重启完成','ok'); load(); loadChat(true); }
+    },1000);
+  }catch(e){ toast('重启失败：'+e.message,'err'); }
+}
+
+/* ── 启动 ── */
+/* 品牌标题：纯文字，无图标（用户要求「就单纯的 Fairy 控制台字就行」） */
+$('brandTitle').textContent = 'Fairy 控制台';
+load();
+loadChat(true);
+$('input').focus();
+
+/* ==== FAIRY-GLITCH-START ==== */
+/* ---------------------------------------------------------------
+   Fairy 抖动 / 切换动画
+   ★ 抄自 Chengzhibense/Fairy-DSH 的 mascot-runtime.js
+     (Apache-2.0)。时序、随机区间、两段式爆发结构逐字对齐，
+     仅把 dsh-fairy- 前缀改成 fv7-，去掉与官方宿主耦合的部分
+     （mount/lifecycle/token 代际校验、低电量分支）。
+   --------------------------------------------------------------- */
+
+/* 时序表（官方原值，勿改） */
+const FAULT_TIMING = {
+  threads: { pulses: 4, gapMin: 30, gapMax: 42,
+             fadeMin: 34, fadeMax: 76 },
+  blocks:  {            gapMin: 56, gapMax: 104,
+             fadeMin: 48, fadeMax: 96 },
+};
+
+const GLY = {
+  root: null, signal: null, noise: null, displace: null,
+  glitchBlocks: null, corners: null,
+  timers: {}, token: 0, transToken: 0,
+  lastMode: 'threads', running: false, suspended: false,
+};
+
+function gRand(min, max) { return min + Math.random() * (max - min); }
+
+/* 清空所有抖动视觉（官方 clearGlitchVisual 的等价实现） */
+function clearGlitchVisual() {
+  const s = GLY.signal;
+  if (!s) return;
+  s.removeAttribute('data-glitch');
+  ['--fv7-g-x', '--fv7-g-skew', '--fv7-g-bright', '--fv7-g-contrast',
+   '--fv7-g-s1-x', '--fv7-g-s2-x', '--fv7-g-s3-x', '--fv7-g-s4-x',
+   '--fv7-g-s5-x'].forEach(n => s.style.removeProperty(n));
+  if (GLY.root) GLY.root.removeAttribute('data-transition-glitch');
+}
+
+/* 锁睫毛帧：抖动时把旋转动画固定住，避免每帧重排（官方 lockLashFrame） */
+function lockLashFrame() {
+  const c = GLY.corners;
+  if (!c) return;
+  const cs = getComputedStyle(c).transform;
+  c.style.animation = 'none';
+  c.style.transform = cs;
+}
+
+/* blocks 模式：5 个切片各自位移，需要先把切片层布局好 */
+function setBlockLayout() {
+  const gb = GLY.glitchBlocks;
+  if (!gb) return;
+  gb.style.opacity = '1';
+  gb.style.display = 'block';
+}
+
+/* ★ 核心：一次抖动脉冲（官方 setGlitchPulse 逐字对齐）
+   threads = 位移滤镜让像素沿水平方向撕裂
+   blocks  = 五个相邻切片左右反向位移 */
+function setGlitchPulse(mode, isTransition) {
+  const s = GLY.signal;
+  if (!s) return;
+  const st = s.style;
+  const T = !!isTransition;
+  /* ★ 可见度增益（用户反馈官方原值在深色背景上看不出来）
+     官方基准：x=±0.9px / skew=±0.24deg / bright=1.02~1.14 / contrast=1.02~1.16
+     这里整体放大 G 倍，让抖动"看得见"。想回到官方原值就把 G 改 1。 */
+  const G = 4.0;
+  st.setProperty('--fv7-g-x',
+    (gRand(T ? -1.6 : -0.9, T ? 1.6 : 0.9) * G).toFixed(2) + 'px');
+  st.setProperty('--fv7-g-skew',
+    (gRand(T ? -0.32 : -0.24, T ? 0.32 : 0.24) * G).toFixed(2) + 'deg');
+  st.setProperty('--fv7-g-bright',
+    (1 + (gRand(T ? 0.06 : 0.02, T ? 0.18 : 0.14)) * G).toFixed(3));
+  st.setProperty('--fv7-g-contrast',
+    (1 + (gRand(T ? 0.08 : 0.02, T ? 0.22 : 0.16)) * G * 0.6).toFixed(3));
+
+  if (mode === 'threads') {
+    /* 噪声场很贵：一次爆发只生成一次，其余脉冲复用
+       （官方注释原话：generate one noise field at its first frame） */
+    const begins = s.getAttribute('data-glitch') !== 'threads';
+    if (begins && GLY.noise) {
+      GLY.noise.setAttribute('seed',
+        String(Math.floor(gRand(1, 999))));
+      GLY.noise.setAttribute('baseFrequency',
+        gRand(0.004, 0.011).toFixed(3) + ' ' +
+        gRand(T ? 0.78 : 0.65, T ? 1.18 : 1.0).toFixed(3));
+    }
+    if (begins && GLY.displace) {
+      GLY.displace.setAttribute('scale',
+        gRand(T ? 30 : 17, T ? 46 : 29).toFixed(1));
+    }
+  } else {
+    if (!s.hasAttribute('data-glitch')) lockLashFrame();
+    const polarity = Math.random() < 0.5 ? -1 : 1;
+    const strength = gRand(T ? 4.2 : 1.4, T ? 6.8 : 3) * 3.2;
+    for (let i = 1; i <= 5; i += 1) {
+      const dir = (i % 2 === 0) ? polarity : -polarity;
+      const off = dir * (strength + gRand(-0.35, 0.35));
+      st.setProperty('--fv7-g-s' + i + '-x', off.toFixed(2) + 'px');
+    }
+    setBlockLayout();
+  }
+  s.setAttribute('data-glitch', mode);
+}
+
+function gTimer(key, fn, delay) {
+  if (GLY.timers[key]) clearTimeout(GLY.timers[key]);
+  GLY.timers[key] = setTimeout(() => {
+    GLY.timers[key] = null;
+    fn();
+  }, delay);
+}
+
+function stopGlitch() {
+  Object.keys(GLY.timers).forEach(k => {
+    clearTimeout(GLY.timers[k]);
+    GLY.timers[k] = null;
+  });
+}
+
+/* 随机抖动调度：2.3~4.6 秒后触发，threads/blocks 交替
+   （官方：lastGlitchMode 取反） */
+function scheduleGlitch() {
+  if (!GLY.root || GLY.suspended || !GLY.running) return;
+  if (GLY.timers.glitch) return;
+  const token = GLY.token;
+  gTimer('glitch', () => {
+    if (token !== GLY.token || GLY.suspended || !GLY.running) return;
+    const mode = GLY.lastMode === 'threads' ? 'blocks' : 'threads';
+    GLY.lastMode = mode;
+    if (mode === 'blocks') setBlockLayout();
+    const t = FAULT_TIMING[mode];
+    const pulses = (mode === 'threads')
+      ? t.pulses
+      : 2 * (1 + Math.floor(Math.random() * 2));
+    let i = 0;
+    function pulse() {
+      if (GLY.suspended || !GLY.running) return;
+      setGlitchPulse(mode, false);
+      i += 1;
+      if (i < pulses) {
+        gTimer('glitch', pulse, gRand(t.gapMin, t.gapMax));
+      } else {
+        gTimer('glitch', () => {
+          GLY.signal.removeAttribute('data-glitch');
+          if (GLY.corners) {
+            GLY.corners.style.animation = '';
+            GLY.corners.style.transform = '';
+          }
+          gTimer('glitch', () => scheduleGlitch(),
+                 gRand(mode === 'threads' ? t.fadeMin : t.fadeMin,
+                       mode === 'threads' ? t.fadeMax : t.fadeMax));
+        }, gRand(t.fadeMin, t.fadeMax));
+      }
+    }
+    pulse();
+  }, gRand(1200, 2600));   /* 官方 2300~4600，缩短让抖动更频繁可见 */
+}
+
+/* ★ 状态切换动画：官方两段式爆发
+     第一段 runBurst(2, 0) —— 2 次 threads，保留视觉
+     第二段 runBurst(6, 2) —— 2 次 blocks + 4 次 threads，最后清理 */
+function playStateTransition(nextState) {
+  const root = GLY.root, s = GLY.signal;
+  if (!root || !s || GLY.suspended) return;
+  stopGlitch();
+  const token = ++GLY.transToken;
+  root.setAttribute('data-transition-target', nextState);
+
+  function runBurst(pulseCount, blockPulseCount, keepVisual, onDone) {
+    let idx = 0;
+    root.setAttribute('data-transition-glitch', 'true');
+    function pulse() {
+      if (token !== GLY.transToken) return;
+      if (idx < blockPulseCount) {
+        if (idx === 0) setBlockLayout();
+        setGlitchPulse('blocks', true);
+      } else {
+        setGlitchPulse('threads', true);
+      }
+      idx += 1;
+      if (idx < pulseCount) {
+        gTimer('trans', pulse, 40);
+        return;
+      }
+      gTimer('trans', () => {
+        if (token !== GLY.transToken) return;
+        if (!keepVisual) {
+          root.removeAttribute('data-transition-glitch');
+          clearGlitchVisual();
+          if (GLY.corners) {
+            GLY.corners.style.animation = '';
+            GLY.corners.style.transform = '';
+          }
+        }
+        onDone();
+      }, 28);
+    }
+    pulse();
+  }
+
+  runBurst(2, 0, true, () => {
+    if (token !== GLY.transToken) return;
+    runBurst(6, 2, false, () => {
+      if (token !== GLY.transToken) return;
+      root.removeAttribute('data-transition-target');
+      scheduleGlitch();
+    });
+  });
+}
+
+/* ── 挂载：等眼睛进 DOM 后开始 ── */
+function initFairyGlitch() {
+  const root = document.getElementById('fv7Eye');
+  if (!root) return false;
+  GLY.root = root;
+  GLY.signal = root.querySelector('.fv7-signal');
+  GLY.glitchBlocks = root.querySelector('.fv7-glitch-blocks');
+  GLY.corners = root.querySelector('.fv7-corners');
+  GLY.noise = document.getElementById('fv7-noise');
+  GLY.displace = document.getElementById('fv7-displace');
+  if (!GLY.signal) return false;
+  GLY.running = true;
+  GLY.suspended = false;
+  GLY.token += 1;
+  GLY.lastMode = 'threads';
+  clearGlitchVisual();
+  scheduleGlitch();
+  return true;
+}
+
+/* 状态变化时调用（由原 pollState 触发） */
+function fairyTransitionTo(state) {
+  if (!GLY.root) return;
+  playStateTransition(state);
+}
+/* ==== FAIRY-GLITCH-END ==== */
+
+
+/* ==== FAIRY-GLITCH-BOOT ==== */
+/* 启动抖动引擎。
+   ★ 眼睛 SVG 是运行时注入的，可能还没进 DOM —— 必须重试，
+     否则一次失败就永远不启动（实测过：GLY.running 一直是 false）。 */
+(function bootFairyGlitch(){
+  var tries = 0, MAX = 60;               /* 60 × 120ms ≈ 7 秒 */
+  function attempt(){
+    tries++;
+    var ok = false;
+    try { ok = initFairyGlitch(); } catch (e) { ok = false; }
+    if (ok) {
+      console.log('[Fairy] glitch engine started (attempt ' + tries + ')');
+      return;
+    }
+    if (tries < MAX) setTimeout(attempt, 120);
+    else console.warn('[Fairy] glitch engine FAILED to start');
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', attempt);
+  } else {
+    attempt();
+  }
+})();
+/* ==== FAIRY-GLITCH-BOOT-END ==== */
+
+/* ==== TAB-SWITCH-START ==== */
+/* 标签切换（★ 补齐：重写页面时漏掉了绑定逻辑，
+   导致点「大模型/人设/音色/系统」都没反应）
+   按钮是 <button data-tab="xxx">，面板是 <div id="tab-xxx"> */
+(function initTabs(){
+  var btns = document.querySelectorAll('nav button[data-tab]');
+  if (!btns.length) return;
+  function show(tab){
+    for (var i = 0; i < btns.length; i++){
+      var b = btns[i];
+      if (b.dataset.tab === tab) b.classList.add('on');
+      else b.classList.remove('on');
+    }
+    var panels = document.querySelectorAll('[id^="tab-"]');
+    for (var j = 0; j < panels.length; j++){
+      var p = panels[j];
+      if (p.id === 'tab-' + tab) p.classList.remove('hidden');
+      else p.classList.add('hidden');
+    }
+    try { if (tab === 'chat' && typeof loadChat === 'function') loadChat(true); } catch(e){}
+    try { if (tab === 'skin' && typeof loadSkin === 'function') loadSkin(); } catch(e){}
+    try { if (typeof load === 'function') load(); } catch(e){}
+  }
+  for (var i = 0; i < btns.length; i++){
+    (function(b){
+      b.addEventListener('click', function(ev){
+        ev.preventDefault();
+        show(b.dataset.tab);
+      });
+    })(btns[i]);
+  }
+  /* 初始态：找带 .on 的按钮，没有就用第一个 */
+  var cur = document.querySelector('nav button[data-tab].on')
+            || btns[0];
+  show(cur.dataset.tab);
+  console.log('[Fairy] tabs ready:', btns.length);
+})();
+/* ==== TAB-SWITCH-END ==== */
+
+/* ==== MODEL-PROBE-JS-START ==== */
+/* 探测可用模型（用户需求：填自定义模型名容易打错，改成可探测+选择）
+   ★ 后端：GET /admin/api/models?base_url=&api_key=
+     转发 {base_url}/models，返回 {ok, models:[id...]}
+   ★ 仍可手输：选中候选只是填入输入框，别名（如 deepseek-chat）照样能用。 */
+async function probeModels(){
+  const btn = $('probeBtn');
+  const box = $('modelList');
+  if (!btn || !box) return;
+  const base = ($('llm_base') && $('llm_base').value.trim()) || '';
+  const key  = ($('llm_key')  && $('llm_key').value.trim())  || '';
+  btn.disabled = true;
+  const oldTxt = btn.textContent;
+  btn.textContent = '探测中…';
+  box.className = 'model-list on';
+  box.innerHTML = '<span class="tip">正在请求 ' +
+    (base ? esc(base) : '已保存的 Base URL') + ' …</span>';
+  try{
+    let q = '/admin/api/models?base_url=' + encodeURIComponent(base);
+    if (key) q += '&api_key=' + encodeURIComponent(key);
+    const d = await api(q);
+    if (!d.ok) throw new Error(d.error || '探测失败');
+    if (!d.models || !d.models.length){
+      box.innerHTML = '<span class="tip">该网关未返回模型列表</span>';
+      return;
+    }
+    const cur = ($('llm_model').value || '').trim();
+    box.innerHTML = d.models.map(m =>
+      '<span class="mi' + (m === cur ? ' cur' : '') +
+      '" onclick="pickModel(\'' + esc(m) + '\')">' + esc(m) + '</span>'
+    ).join('') +
+    '<span class="tip">共 ' + d.count + ' 个（点选填入，也可手输别名）</span>';
+  }catch(e){
+    box.innerHTML = '<span class="tip" style="color:#f87171">' +
+      esc(e.message || String(e)) + '</span>';
+  }finally{
+    btn.disabled = false;
+    btn.textContent = oldTxt;
+  }
+}
+function pickModel(name){
+  const el = $('llm_model');
+  if (!el) return;
+  el.value = name;
+  document.querySelectorAll('#modelList .mi').forEach(function(x){
+    x.classList.toggle('cur', x.textContent === name);
+  });
+  toast('已选择 ' + name, 'ok');
+}
+/* ==== MODEL-PROBE-JS-END ==== */
+
+/* ══════════ CONSOLE-V2：灯光 / 舵机 / 全局保存 ══════════════════ */
+(function(){
+  var defColors=null, defServo=null;
+
+  function hexToRgb(h){
+    h=(h||'').replace('#','').trim();
+    if(h.length===3) h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+    if(!/^[0-9a-fA-F]{6}$/.test(h)) return null;
+    return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),
+            parseInt(h.slice(4,6),16)];
+  }
+  function rgbToHex(a){
+    return '#'+a.map(function(v){return ('0'+Math.max(0,Math.min(255,
+      parseInt(v)||0)).toString(16)).slice(-2)}).join('');
+  }
+  function setMsg(id,txt,ok){
+    var e=document.getElementById(id); if(!e) return;
+    e.textContent=txt||'';
+    e.style.color = ok===false ? '#ff8080' : (ok===true?'#7ee0a0':'#7ea6c8');
+    if(txt) setTimeout(function(){ if(e.textContent===txt) e.textContent='';},4000);
+  }
+
+  // 载入已存配置并回填
+  window.loadHardware=async function(){
+    try{
+      var r=await fetch('/admin/api/hardware'); var d=await r.json();
+      if(!d.ok) return;
+      defColors=d.defaults.colors; defServo=d.defaults.servo;
+      Object.keys(d.colors).forEach(function(k){
+        var hex=rgbToHex(d.colors[k]);
+        var c=document.getElementById('led_'+k);
+        var t=document.getElementById('led_'+k+'_txt');
+        if(c) c.value=hex;
+        if(t) t.value=hex.toUpperCase();
+      });
+      var y=document.getElementById('sv_yaw'), p=document.getElementById('sv_pitch');
+      if(y){ y.value=Math.round(d.servo.home_yaw); }
+      if(p){ p.value=Math.round(d.servo.home_pitch); }
+      onServoSlide();
+    }catch(e){}
+  };
+
+  window.onLedPick=function(el){
+    var t=document.getElementById('led_'+el.dataset.state+'_txt');
+    if(t) t.value=el.value.toUpperCase();
+  };
+  window.onLedText=function(el){
+    var st=el.id.replace('led_','').replace('_txt','');
+    var rgb=hexToRgb(el.value);
+    if(!rgb) return;
+    var c=document.getElementById('led_'+st);
+    if(c) c.value=rgbToHex(rgb);
+  };
+
+  window.collectColors=function(){
+    var o={};
+    document.querySelectorAll('input[type=color][data-state]').forEach(function(c){
+      var rgb=hexToRgb(c.value); if(rgb) o[c.dataset.state]=rgb;
+    });
+    return o;
+  };
+
+  // ★ 保存时把硬件配置一起提交（挂在原 save() 之后）
+  window.collectHardware=function(){
+    var sv=document.getElementById('sv_yaw'), sp=document.getElementById('sv_pitch');
+    return {colors:collectColors(),
+            servo:{home_yaw: sv?parseFloat(sv.value):0,
+                   home_pitch: sp?parseFloat(sp.value):45}};
+  };
+  window.postHardware=async function(){
+    try{
+      var r=await fetch('/admin/api/hardware',{method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(collectHardware())});
+      var d=await r.json();
+      return d.ok===true;
+    }catch(e){ return false; }
+  };
+
+  // 实时预览：通过对话让 AI 调工具（设备在线才生效）
+  window.ledPreview=async function(){
+    var c=collectColors();
+    var st=document.getElementById('led_preview_state');
+    var pick=st?st.value:'idle';
+    var rgb=c[pick]||[0,0,0];
+    setMsg('ledMsg','正在下发…');
+    var ok=await sendToAI('把'+pick+'状态的灯设置成 rgb('+rgb.join(',')+')');
+    setMsg('ledMsg', ok?'已下发（看设备是否变色）':'下发失败（设备在线吗？）', ok);
+  };
+  window.ledReset=function(){
+    if(!defColors) return;
+    Object.keys(defColors).forEach(function(k){
+      var hex=rgbToHex(defColors[k]);
+      var c=document.getElementById('led_'+k), t=document.getElementById('led_'+k+'_txt');
+      if(c) c.value=hex; if(t) t.value=hex.toUpperCase();
+    });
+    setMsg('ledMsg','已恢复默认（点保存生效）',true);
+  };
+
+  window.onServoSlide=function(){
+    var y=document.getElementById('sv_yaw'), p=document.getElementById('sv_pitch');
+    var yt=document.getElementById('sv_yaw_txt'), pt=document.getElementById('sv_pitch_txt');
+    if(y&&yt) yt.textContent=y.value+'°';
+    if(p&&pt) pt.textContent=p.value+'°';
+  };
+  window.motorPreview=async function(){
+    var y=document.getElementById('sv_yaw'), p=document.getElementById('sv_pitch');
+    setMsg('motorMsg','正在下发…');
+    var ok=await sendToAI('转头到 yaw='+y.value+' pitch='+p.value);
+    setMsg('motorMsg', ok?'已下发（看设备是否转头）':'下发失败（设备在线吗？）', ok);
+  };
+  window.motorCenter=async function(){
+    var ok=await sendToAI('回正，恢复到默认姿势');
+    setMsg('motorMsg', ok?'已回正':'下发失败', ok);
+  };
+
+  // ★ 全局保存：既存原有配置（LLM/人设/音色），也存硬件配置（灯光/舵机）
+  window.saveAll=async function(andRestart){
+    var ok = await postHardware();
+    if(ok){ toast('硬件配置已保存','ok'); }
+    await save(andRestart);   // 复用原有保存（含 toast 与重启）
+  };
+
+  // 借控制台既有的发送通道（若有）；没有就用 /admin/api/chat/send
+  async function sendToAI(text){
+    try{
+      var r=await fetch('/admin/api/chat/send',{method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({text:text})});
+      return r.ok;
+    }catch(e){ return false; }
+  }
+
+  // 切到 灯光 面板时载入配置
+  var t=document.getElementById('tab-led');
+  if(t) loadHardware();
+  document.addEventListener('click',function(ev){
+    var b=ev.target.closest && ev.target.closest('nav button[data-tab]');
+    if(b && (b.dataset.tab==='led'||b.dataset.tab==='motor')) loadHardware();
+  });
+})();
+
+
+  // ★ 皮肤切换（控制台入口）
+  var _skinCur = 'fairy';
+
+  window.loadSkin = async function(){
+    try{
+      var r = await fetch('/admin/api/skin');
+      var d = await r.json();
+      if(!d.ok){ return; }
+      _skinCur = d.skin || 'fairy';
+      paintSkin(_skinCur);
+      if(d.servers){
+        var sf = document.getElementById('srv-fairy');
+        var sg = document.getElementById('srv-geometry');
+        if(sf){ sf.textContent = '服务器：' + shortUrl(d.servers.fairy); }
+        if(sg){ sg.textContent = '服务器：' + shortUrl(d.servers.geometry); }
+      }
+      // ★ 原「切换到 XX」按钮已按用户要求删除（点卡片即可切换）
+    }catch(e){}
+  };
+
+  function shortUrl(u){
+    if(!u){ return '—'; }
+    if(u.indexOf('tenclass') >= 0){ return '官方'; }
+    if(u.indexOf('192.168') >= 0 || u.indexOf('127.0.0.1') >= 0){
+      return '自建';
+    }
+    return '自定义';
+  }
+
+  function paintSkin(s){
+    var cf = document.getElementById('card-fairy');
+    var cg = document.getElementById('card-geometry');
+    if(cf){ cf.classList.toggle('cur', s === 'fairy'); }
+    if(cg){ cg.classList.toggle('cur', s === 'geometry'); }
+  }
+
+  // ★★★ 点卡片 = 直接切换（用户要求：两张卡片就是切换入口）
+  //   原来：点卡片只"选中"，还要再点按钮 ⇒ 两步、且入口重复
+  //   现在：点另一张卡片 ⇒ 确认后直接切；点当前这张 ⇒ 提示已是
+  document.addEventListener('click', function(ev){
+    var card = ev.target.closest ? ev.target.closest('.skin-card') : null;
+    if(!card){ return; }
+    var id = card.id === 'card-fairy' ? 'fairy' : 'geometry';
+    if(id === _skinCur){
+      _msg('已经是「' + (_skinCur === 'fairy' ? 'Fairy' : '官方小表情')
+           + '」了', '');
+      return;
+    }
+    switchToSkin(id);
+  });
+
+  // ★ 切换结果的提示（原按钮/span 已按用户要求删除 ⇒ 用 toast）
+  function _msg(text, cls){
+    if(typeof toast === 'function'){ toast(text, cls); }
+    else { console.log('[skin]', text); }
+  }
+
+  // 切换（唯一的切换实现）
+  async function switchToSkin(target){
+    var label = (target === 'fairy') ? 'Fairy' : '官方小表情';
+    if(!confirm('切换到「' + label + '」？\n\n' +
+        '会自动换成对应的服务器，设备重启约 10 秒。')){ return; }
+    _msg('切换中…', '');
+    try{
+      var r = await fetch('/admin/api/skin', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({skin: target})
+      });
+      var d = await r.json();
+      if(!d.ok){
+        _msg('失败：' + (d.error || '未知'), 'err');
+        return;
+      }
+      _msg(d.message || '已切换', d.applied ? 'ok' : '');
+      _skinCur = target;
+      paintSkin(target);
+      if(typeof toast === 'function'){
+        toast('已切到 ' + label, d.applied ? 'ok' : '');
+      }
+      if(d.applied){ setTimeout(loadSkin, 12000); }
+    }catch(e){
+      _msg('请求失败：' + e, 'err');
+    }
+  }
+
+
+/* ══ CONSOLE-FINAL：连接状态 + 设为默认角度 + 每页保存 ══════════ */
+(function(){
+  // ① 连接状态检测（进灯光/舵机页时自动跑）
+  window.checkDevice = async function(which){
+    var box = document.getElementById(which === 'led' ? 'ledConn' : 'motorConn');
+    if(!box) return false;
+    box.className = 'connbar';
+    box.innerHTML = '<span class="dot"></span>正在检测设备连接…';
+    var d = null;
+    try{
+      var r = await fetch('/admin/api/device');
+      d = await r.json();
+    }catch(e){ d = null; }
+    if(d && d.ok && d.online){
+      box.className = 'connbar ok';
+      box.innerHTML = '<span class="dot"></span>设备已连接，可实时预览'
+        + (d.device ? '（' + d.device + '）' : '')
+        + (d.tools ? '　工具 ' + d.tools + ' 个' : '');
+      return true;
+    }
+    box.className = 'connbar bad';
+    var why = (d && d.reason) ? d.reason : '无法连接服务器接口';
+    box.innerHTML = '<span class="dot"></span>设备未连接（' + why + '）';
+    return false;
+  };
+
+  // ② 灯光：应用到设备（逐状态下发，走服务器→设备 MCP）
+  window.ledApply = async function(){
+    var ok = await checkDevice('led');
+    if(!ok){ setMsg('ledMsg','设备未连接，无法下发', false); return; }
+    setMsg('ledMsg','正在下发…');
+    var c = collectColors();
+    var n = 0, bad = 0;
+    for(var k in c){
+      var r = await fetch('/admin/api/hw_apply', {method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({kind:'led', state:k, value:c[k]})});
+      if(r.ok){ n++; } else { bad++; }
+    }
+    setMsg('ledMsg', bad ? ('已下发 '+n+' 个，失败 '+bad+' 个') : ('已下发 '+n+' 个状态'),
+           !bad);
+  };
+
+  // ③ 舵机：转到当前滑块角度（预览）
+  window.motorMove = async function(){
+    var ok = await checkDevice('motor');
+    if(!ok){ setMsg('motorMsg','设备未连接，无法转动', false); return; }
+    var y = +document.getElementById('sv_yaw').value;
+    var p = +document.getElementById('sv_pitch').value;
+    setMsg('motorMsg','正在转动…');
+    try{
+      var r = await fetch('/admin/api/hw_apply', {method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({kind:'servo', yaw:y, pitch:p})});
+      setMsg('motorMsg', r.ok ? ('已转到 yaw '+y+'° / pitch '+p+'°') : '下发失败',
+             r.ok);
+    }catch(e){ setMsg('motorMsg','下发失败', false); }
+  };
+
+  // ④ ★ 设为默认角度（用户需求：「调整到自己满意的角度后，点击设为默认角度」）
+  window.setHomeAngle = async function(){
+    var ok = await checkDevice('motor');
+    if(!ok){ setMsg('motorMsg','设备未连接，无法保存', false); return; }
+    var y = +document.getElementById('sv_yaw').value;
+    var p = +document.getElementById('sv_pitch').value;
+    setMsg('motorMsg','正在写入设备…');
+    try{
+      var r = await fetch('/admin/api/hw_apply', {method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({kind:'servo_home', yaw:y, pitch:p})});
+      var d = await r.json();
+      if(d && d.ok){
+        setMsg('motorMsg','已设为默认角度：yaw '+y+'° / pitch '+p+'°', true);
+      }else{
+        setMsg('motorMsg','写入失败：'+((d&&d.error)||'未知'), false);
+      }
+    }catch(e){ setMsg('motorMsg','写入失败', false); }
+  };
+
+  // ⑤ 进页面自动检测（点击导航时）
+  // ★ 修正：切页时检测（双延时，兼容切页动画）
+  function detectFor(tab){
+    if(tab === 'led' || tab === 'motor'){
+      setTimeout(function(){ checkDevice(tab); }, 60);
+      setTimeout(function(){ checkDevice(tab); }, 420);   // 动画后再确认一次
+    }
+  }
+  document.addEventListener('click', function(ev){
+    var b = ev.target.closest && ev.target.closest('nav button[data-tab]');
+    if(!b) return;
+    detectFor(b.dataset.tab);
+  });
+  // ★ 每 8 秒自动刷新当前页的连接状态（设备中途上线/掉线能反映）
+  setInterval(function(){
+    var l = document.getElementById('tab-led');
+    var m = document.getElementById('tab-motor');
+    if(l && !l.classList.contains('hidden'))        checkDevice('led');
+    else if(m && !m.classList.contains('hidden'))   checkDevice('motor');
+  }, 8000);
+  // 首次进入若已在灯光/舵机页，也检
+  setTimeout(function(){
+    ['led','motor'].forEach(function(k){
+      var el = document.getElementById('tab-' + k);
+      if(el && !el.classList.contains('hidden')) checkDevice(k);
+    });
+  }, 500);
+
+  // ⑥ 每页保存条：复用 saveAll，但把提示写到本页
+  window.savePage = function(tab, andRestart){
+    var el = document.getElementById('pb_' + tab);
+    if(el) el.textContent = '保存中…';
+    saveAll(andRestart).then(function(){
+      if(el) el.textContent = '已保存 ✓';
+      setTimeout(function(){ if(el) el.textContent = ''; }, 2500);
+    });
+  };
+})();
+
+/* V3-JOYBIND : 摇杆 + 灯光模式 + 保存自动下发 */
+(function(){
+  'use strict';
+  var YMIN=-128, YMAX=128, PMIN=3, PMAX=87;
+  var curYaw=0, curPitch=45;
+
+  function api(path, body){
+    return fetch(path, {
+      method: body ? 'POST' : 'GET',
+      headers: body ? {'Content-Type':'application/json'} : {},
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function(r){ return r.json().catch(function(){return {};}); })
+      .catch(function(){ return {}; });
+  }
+
+  var cv=null, ctx=null, drag=false, R=0, CX=0, CY=0;
+
+  function draw(){
+    if(!cv||!ctx) return;
+    ctx.clearRect(0,0,cv.width,cv.height);
+    CX=cv.width/2; CY=cv.height/2; R=cv.width/2-18;
+    ctx.beginPath(); ctx.arc(CX,CY,R,0,Math.PI*2);
+    ctx.fillStyle='#0e2129'; ctx.fill();
+    ctx.strokeStyle='#1d4d5a'; ctx.lineWidth=1.5; ctx.stroke();
+    ctx.strokeStyle='rgba(79,209,232,.18)'; ctx.lineWidth=1;
+    ctx.beginPath();
+    ctx.moveTo(CX,CY-R); ctx.lineTo(CX,CY+R);
+    ctx.moveTo(CX-R,CY); ctx.lineTo(CX+R,CY);
+    ctx.stroke();
+    ctx.beginPath(); ctx.arc(CX,CY,R*0.55,0,Math.PI*2); ctx.stroke();
+    var x=CX+(curYaw-YMIN)/(YMAX-YMIN)*2*R-R;
+    var y=CY-(curPitch-PMIN)/(PMAX-PMIN)*2*R+R;
+    var g=ctx.createRadialGradient(x,y,2,x,y,17);
+    g.addColorStop(0,'#7fe7ff'); g.addColorStop(1,'#1a7f96');
+    ctx.beginPath(); ctx.arc(x,y,15,0,Math.PI*2);
+    ctx.fillStyle=g; ctx.fill();
+    ctx.strokeStyle='#4fd1e8'; ctx.lineWidth=2; ctx.stroke();
+  }
+
+  function pos2ang(px,py){
+    var dx=(px-CX)/R, dy=(CY-py)/R;
+    var d=Math.sqrt(dx*dx+dy*dy);
+    if(d>1){ dx/=d; dy/=d; }
+    return {
+      yaw: Math.round(YMIN + (dx+1)/2*(YMAX-YMIN)),
+      pitch: Math.round(PMIN + (dy+1)/2*(PMAX-PMIN))
+    };
+  }
+
+  function syncSliders(){
+    var sy=document.getElementById('sv_yaw');
+    var sp=document.getElementById('sv_pitch');
+    if(sy && document.activeElement!==sy){ sy.value=curYaw; }
+    if(sp && document.activeElement!==sp){ sp.value=curPitch; }
+    var ty=document.getElementById('sv_yaw_txt');
+    var tp=document.getElementById('sv_pitch_txt');
+    if(ty){ ty.textContent=curYaw+'\u00b0'; }
+    if(tp){ tp.textContent=curPitch+'\u00b0'; }
+    var jy=document.getElementById('joyYaw');
+    var jp=document.getElementById('joyPitch');
+    if(jy){ jy.textContent=curYaw; }
+    if(jp){ jp.textContent=curPitch; }
+    draw();
+  }
+
+  function sendServo(y,p){
+    api('/admin/api/hw_apply',{kind:'servo',yaw:y,pitch:p}).then(function(d){
+      var el=document.getElementById('motorMsg');
+      if(!el) return;
+      if(d && d.ok){
+        el.textContent='\u5df2\u4e0b\u53d1 yaw='+y+' pitch='+p;
+        el.className='msg ok';
+      }else{
+        el.textContent=(d&&d.error)||'\u4e0b\u53d1\u5931\u8d25';
+        el.className='msg bad';
+      }
+    });
+  }
+
+  function bindJoy(){
+    cv=document.getElementById('joyPad');
+    if(!cv) return;
+    ctx=cv.getContext('2d');
+    function pt(e){
+      var r=cv.getBoundingClientRect();
+      var p=(e.touches&&e.touches[0])?e.touches[0]:e;
+      return {x:(p.clientX-r.left)*(cv.width/r.width),
+              y:(p.clientY-r.top)*(cv.height/r.height)};
+    }
+    cv.addEventListener('pointerdown',function(e){
+      drag=true;
+      if(cv.setPointerCapture){ try{cv.setPointerCapture(e.pointerId);}catch(_){} }
+      var q=pt(e), a=pos2ang(q.x,q.y);
+      curYaw=a.yaw; curPitch=a.pitch; syncSliders();
+      e.preventDefault();
+    });
+    cv.addEventListener('pointermove',function(e){
+      if(!drag) return;
+      var q=pt(e), a=pos2ang(q.x,q.y);
+      curYaw=a.yaw; curPitch=a.pitch; syncSliders();
+      e.preventDefault();
+    });
+    cv.addEventListener('pointerup',function(e){
+      if(!drag) return;
+      drag=false;
+      sendServo(curYaw,curPitch);
+      e.preventDefault();
+    });
+    cv.addEventListener('pointercancel',function(){ drag=false; });
+    syncSliders();
+  }
+
+  window.onLedMode=function(sel){
+    var el=document.getElementById('ledMsg');
+    if(el){
+      el.textContent='\u6a21\u5f0f\u5df2\u6539\u4e3a'+
+        (sel.value==='breath'?'\u547c\u5438':'\u5e38\u4eae')+
+        '\uff08\u70b9\u4fdd\u5b58\u751f\u6548\uff09';
+      el.className='msg';
+    }
+  };
+
+  function hex2rgb(h){
+    h=(h||'#000000').replace('#','');
+    if(h.length===3){ h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2]; }
+    return [parseInt(h.substr(0,2),16)||0,
+            parseInt(h.substr(2,2),16)||0,
+            parseInt(h.substr(4,2),16)||0];
+  }
+
+  window.ledApply=function(){
+    var colors={}, modes={};
+    var ins=document.querySelectorAll('input[id^="led_"][data-state]');
+    for(var i=0;i<ins.length;i++){
+      colors[ins[i].dataset.state]=hex2rgb(ins[i].value);
+    }
+    var sels=document.querySelectorAll('select[id^="led_mode_"]');
+    for(var j=0;j<sels.length;j++){
+      modes[sels[j].dataset.state]=sels[j].value;
+    }
+    api('/admin/api/device').then(function(dv){
+      if(!(dv && dv.online)){
+        var el=document.getElementById('ledMsg');
+        if(el){
+          el.textContent='\u8bbe\u5907\u672a\u8fde\u63a5\uff0c\u4ec5\u5df2\u5b58\u670d\u52a1\u5668';
+          el.className='msg bad';
+        }
+        return api('/admin/api/hardware',{colors:colors});
+      }
+      var tasks=[], k;
+      for(k in colors){
+        if(Object.prototype.hasOwnProperty.call(colors,k)){
+          tasks.push(api('/admin/api/hw_apply',
+            {kind:'led',state:k,value:colors[k]}));
+        }
+      }
+      for(k in modes){
+        if(Object.prototype.hasOwnProperty.call(modes,k)){
+          tasks.push(api('/admin/api/hw_apply',
+            {kind:'led_mode',state:k,mode:modes[k]}));
+        }
+      }
+      tasks.push(api('/admin/api/hardware',{colors:colors}));
+      Promise.all(tasks).then(function(rs){
+        var okN=0;
+        for(var t=0;t<rs.length;t++){ if(rs[t]&&rs[t].ok){ okN++; } }
+        var el=document.getElementById('ledMsg');
+        if(el){
+          el.textContent=(okN===rs.length)
+            ? ('\u5df2\u4e0b\u53d1 '+okN+' \u9879\u5230\u8bbe\u5907')
+            : ('\u90e8\u5206\u6210\u529f '+okN+'/'+rs.length);
+          el.className=(okN===rs.length)?'msg ok':'msg bad';
+        }
+      });
+    });
+  };
+
+  function boot(){
+    bindJoy();
+    if(typeof window.savePage==='function' && !window.savePage.__v3){
+      var orig=window.savePage;
+      var wrapped=function(tab,restart){
+        var r=orig.apply(this,arguments);
+        if(tab==='led'){ try{ window.ledApply(); }catch(e){} }
+        return r;
+      };
+      wrapped.__v3=true;
+      window.savePage=wrapped;
+    }
+  }
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',boot);
+  }else{ boot(); }
+})();
+
+
+/* V5-MOTION-SKIN : 待机扭头开关 + 一键换皮肤（不用说话） */
+(function(){
+  'use strict';
+  function api(path, body){
+    return fetch(path, {
+      method: body ? 'POST' : 'GET',
+      headers: body ? {'Content-Type':'application/json'} : {},
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function(r){ return r.json().catch(function(){return {};}); })
+      .catch(function(){ return {}; });
+  }
+
+  /* ── 待机扭头开关 ── */
+  window.onAutoMotion = function(el){
+    var msg = document.getElementById('autoMotionMsg');
+    var on = !!el.checked;
+    if(msg){ msg.textContent = '正在下发…'; msg.style.color = '#6f8f99'; }
+    api('/admin/api/hw_apply', {kind:'motion_auto', enabled:on})
+      .then(function(d){
+        if(!msg) return;
+        if(d && d.ok){
+          msg.textContent = on ? '已开启并保存到设备' : '已关闭并保存到设备';
+          msg.style.color = '#7fd6b8';
+        }else{
+          // ★ 失败必须把开关【拨回去】——否则界面显示"关"但设备没关，
+          //   下次进页面又回填成"开"，用户会以为"自己跳回去"
+          el.checked = !on;
+          msg.textContent = (d && d.error)
+            ? ('未生效：' + d.error)
+            : '未生效：下发失败（设备在线吗？）';
+          msg.style.color = '#e08080';
+        }
+      })
+      .catch(function(){
+        // 网络异常同样回滚
+        el.checked = !on;
+        if(msg){
+          msg.textContent = '未生效：网络错误';
+          msg.style.color = '#e08080';
+        }
+      });
+  };
+
+  /* ── 皮肤当前值读取（★ 旧的"一键切换"入口已按用户要求删除）── */
+  var curSkin = null;
+  function skinLabel(s){
+    return (s === 'geometry') ? '官方几何脸' : 'Fairy';
+  }
+  function loadSkinCur(){
+    return api('/admin/api/skin').then(function(d){
+      curSkin = d && d.skin ? d.skin : null;
+      _skinCur = curSkin || 'fairy';
+      paintSkin(_skinCur);
+      return curSkin;
+    });
+  }
+
+  function boot(){
+    /* 进舵机页时回填开关状态 */
+    var oldCheck = window.checkDevice;
+    if(typeof oldCheck === 'function' && !oldCheck.__v5){
+      var w = function(){
+        var r = oldCheck.apply(this, arguments);
+        api('/admin/api/hardware').then(function(d){
+          var el = document.getElementById('autoMotion');
+          if(el && d && typeof d.auto_motion === 'boolean'){
+            el.checked = d.auto_motion;
+          }
+        });
+        return r;
+      };
+      w.__v5 = true;
+      window.checkDevice = w;
+    }
+    loadSkinCur();
+  }
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', boot);
+  }else{ boot(); }
+})();
+
+</script>
+</body>
+</html>

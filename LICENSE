@@ -1,0 +1,45 @@
+MIT License
+
+Copyright (c) 2026 Michae1o (https://github.com/Michae1o)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+────────────────────────────────────────────────────────────────────────────
+★ 重要：本 MIT 许可仅适用于本项目的【代码】。
+
+  以下内容【不在】MIT 许可范围内，请阅读 CREDITS.md：
+
+  1. 角色形象「Fairy」（《绝区零》）的版权属于【米哈游】
+     - 本项目对 Fairy 形象的使用属个人非商业同人
+     - 不授予任何商业使用权
+     - 本项目不附带 Fairy 的美术素材文件
+
+  2. 音色参考音频的版权属于【原声者】
+     - 参考来源：B站 UP 主「白菜工厂1145号员工」
+     - 本项目不附带参考音频文件
+
+  3. 上游依赖各有其许可（均为 MIT / BSD / Apache-2.0）
+     - xiaozhi-esp32 (MIT)
+     - xiaozhi-esp32-server (MIT)
+     - M5Stack StackChan (MIT)
+     - Bosch BMI270 SensorAPI (BSD-3-Clause)
+     - Espressif esp-sr (Apache-2.0)
+
+  二次分发前请务必阅读 CREDITS.md。
+────────────────────────────────────────────────────────────────────────────

@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<title>Fairy</title>
+<style>
+/* ══ Fairy 手机端 H5 ══
+   设计约束（用户要求）：
+     · 黑底 + 青色主色（绝区零风格），不要蓝紫渐变
+     · 不要图标（只有文字），不要花哨
+     · 直角（无圆角），1px 细边
+     · 标准宽度字体（微软雅黑/苹方，字重 400）
+   独立页：/m  —— 电脑版 /admin 一行不动
+*/
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#000;--fg:#e8f0f8;--dim:#6b7f90;
+  --cyan:#22d3ee;--line:#1c2a33;--box:#0a1218;
+}
+html,body{height:100%;background:var(--bg);color:var(--fg);
+  font:15px/1.55 -apple-system,"Segoe UI","Microsoft YaHei",system-ui,sans-serif;
+  font-weight:400;overflow-x:hidden;overscroll-behavior-y:none}
+body{display:flex;flex-direction:column;min-height:100vh;min-height:100dvh}
+
+/* ── 顶栏 ── */
+header{flex:0 0 auto;display:flex;align-items:center;gap:10px;
+  padding:12px 14px;border-bottom:1px solid var(--line);
+  padding-top:calc(12px + env(safe-area-inset-top))}
+header h1{font-size:17px;font-weight:600;letter-spacing:.5px}
+header .st{font-size:12px;color:var(--dim);margin-left:auto;
+  display:flex;align-items:center;gap:5px}
+.dot{width:7px;height:7px;background:var(--cyan);display:inline-block}
+.dot.off{background:#7a3d3d}
+#devState{font-size:12px;color:var(--dim)}
+
+/* ── 内容区 ── */
+main{flex:1 1 auto;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  padding:14px;padding-bottom:calc(14px + env(safe-area-inset-bottom))}
+.pane{display:none}.pane.on{display:block}
+
+/* ── 通用控件（直角、细边）── */
+.card{background:var(--box);border:1px solid var(--line);padding:12px;margin-bottom:10px}
+.card h2{font-size:14px;font-weight:600;color:var(--cyan);margin-bottom:10px;
+  letter-spacing:.5px}
+label{display:block;font-size:12.5px;color:var(--dim);margin:8px 0 4px}
+input,select,textarea{width:100%;background:#050a0e;border:1px solid var(--line);
+  color:var(--fg);padding:10px;font:inherit;font-size:14px;border-radius:0;
+  outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--cyan)}
+textarea{resize:vertical;min-height:96px;line-height:1.5}
+button{background:transparent;border:1px solid var(--cyan);color:var(--cyan);
+  padding:10px 14px;font:inherit;font-size:14px;cursor:pointer;border-radius:0;
+  min-height:40px}
+button:active{background:var(--cyan);color:#000}
+button.pri{background:var(--cyan);color:#000;border-color:var(--cyan)}
+button.gray{border-color:var(--line);color:var(--dim)}
+button.wide{width:100%}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.row>button{flex:1 1 auto}
+.hint{font-size:11.5px;color:var(--dim);margin-top:6px;line-height:1.5}
+.need{font-size:11px;color:#b8860b;margin-left:6px}
+.need.no{color:var(--dim)}
+
+/* ── 对话 ── */
+#msgs{border:1px solid var(--line);background:#050a0e;height:52vh;
+  overflow-y:auto;padding:10px}
+.msg{margin-bottom:12px;font-size:14px;line-height:1.55;word-break:break-word}
+.msg .meta{font-size:11px;color:var(--dim);margin-bottom:3px}
+.msg.me{text-align:right}
+.msg.me .body{color:var(--cyan)}
+.msg.ai .body{color:var(--fg)}
+.sendbar{display:flex;gap:8px;margin-top:10px}
+.sendbar input{flex:1}
+.sendbar button{flex:0 0 auto}
+
+/* ── 底部 Tab ── */
+nav{flex:0 0 auto;display:flex;border-top:1px solid var(--line);
+  padding-bottom:env(safe-area-inset-bottom);background:#050a0e}
+nav button{flex:1;border:none;border-right:1px solid var(--line);
+  padding:13px 4px;font-size:13px;color:var(--dim);min-height:48px}
+nav button:last-child{border-right:none}
+nav button.on{color:var(--cyan);background:#08101a}
+nav button:active{background:#0d1820}
+
+/* ── 开关行 ── */
+.sw{display:flex;align-items:center;justify-content:space-between;
+  padding:10px 0;border-bottom:1px solid var(--line)}
+.sw:last-child{border-bottom:none}
+.sw .lbl{font-size:14px}
+.sw .sub{font-size:11.5px;color:var(--dim);margin-top:2px}
+.tgl{width:52px;height:30px;border:1px solid var(--line);background:#050a0e;
+  position:relative;flex:0 0 auto}
+.tgl i{position:absolute;top:3px;left:3px;width:22px;height:22px;
+  background:var(--dim);transition:.15s}
+.tgl.on{border-color:var(--cyan)}
+.tgl.on i{left:25px;background:var(--cyan)}
+
+/* ── 提示条 ── */
+#toast{position:fixed;left:50%;transform:translateX(-50%);
+  bottom:calc(70px + env(safe-area-inset-bottom));
+  background:#0a1218;border:1px solid var(--cyan);color:var(--fg);
+  padding:10px 16px;font-size:13px;max-width:88vw;text-align:center;
+  display:none;z-index:99}
+.skinrow{display:flex;gap:8px;margin-bottom:10px}
+.skinrow button{flex:1}
+.skinrow button.cur{border-color:var(--cyan);background:#08161c;color:var(--cyan)}
+input[type=color]{height:40px;padding:2px}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Fairy</h1>
+  <span id="devState"></span>
+  <span class="st"><i class="dot off" id="connDot"></i><span id="connTxt">连接中</span></span>
+</header>
+
+<main>
+
+  <!-- ══ 1 对话 ══ -->
+  <section class="pane on" id="p-chat">
+    <div id="msgs"></div>
+    <div class="sendbar">
+      <input id="msgIn" placeholder="和 Fairy 说点什么…" autocomplete="off">
+      <button class="pri" id="sendBtn">发送</button>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <button class="gray" id="refreshChat">刷新</button>
+      <button class="gray" id="clearWeb">清空网页上下文</button>
+      <button class="gray" id="clearAll">清空全部记录</button>
+    </div>
+    <div class="hint">清空网页上下文 = 只清网页侧；清空全部 = 服务器侧也清</div>
+  </section>
+
+  <!-- ══ 2 形象 ══ -->
+  <section class="pane" id="p-skin">
+    <div class="card">
+      <h2>皮肤<span class="need">需重启</span></h2>
+      <div class="skinrow">
+        <button id="skFairy">Fairy</button>
+        <button id="skGeo">官方几何脸</button>
+      </div>
+      <div class="hint" id="skinHint">切换会重启设备并切换连接的服务器</div>
+    </div>
+
+    <div class="card">
+      <h2>灯光（12 颗 RGB）<span class="need no">实时生效</span></h2>
+      <label>待机</label><input type="color" id="c_idle">
+      <label>连接中</label><input type="color" id="c_connecting">
+      <label>聆听</label><input type="color" id="c_listening">
+      <label>说话</label><input type="color" id="c_speaking">
+      <label>通知</label><input type="color" id="c_notifying">
+      <label>错误</label><input type="color" id="c_error">
+      <label>升级</label><input type="color" id="c_upgrading">
+      <div class="row" style="margin-top:10px">
+        <button class="pri" id="applyLed">立即应用</button>
+        <button class="gray" id="resetLed">恢复默认</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>舵机<span class="need no">实时生效</span></h2>
+      <label>左右（yaw）：<span id="yawV">0</span>°</label>
+      <input type="range" id="yaw" min="-128" max="128" value="0" step="1">
+      <label>俯仰（pitch）：<span id="pitchV">45</span>°</label>
+      <input type="range" id="pitch" min="3" max="87" value="45" step="1">
+      <div class="row" style="margin-top:10px">
+        <button class="pri" id="applyServo">立即应用</button>
+        <button class="gray" id="centerServo">回中</button>
+        <button class="gray" id="setDefault">设为默认角度</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ 3 设置 ══ -->
+  <section class="pane" id="p-set">
+    <div class="card">
+      <h2>大模型<span class="need">需重启</span></h2>
+      <label>模型名</label>
+      <input id="llm_model" placeholder="deepseek-chat">
+      <label>接口地址</label>
+      <input id="llm_url" placeholder="https://api.deepseek.com">
+      <label>API Key<span class="hint" id="keyHint" style="display:inline"></span></label>
+      <input id="llm_key" type="password" placeholder="留空 = 不修改">
+      <label>温度：<span id="tempV">0.7</span></label>
+      <input type="range" id="llm_temp" min="0" max="2" step="0.05" value="0.7">
+      <label>最大回复长度</label>
+      <input id="llm_max" type="number" placeholder="999">
+    </div>
+
+    <div class="card">
+      <h2>人设 Prompt<span class="need">需重启</span></h2>
+      <textarea id="prompt" placeholder="你是一个…"></textarea>
+    </div>
+
+    <div class="card">
+      <h2>音色（GPT-SoVITS）<span class="need">需重启</span></h2>
+      <label>参考音频路径</label>
+      <input id="tts_ref" placeholder="留空 = 不改">
+      <label>参考文本</label>
+      <input id="tts_text" placeholder="留空 = 不改">
+      <div class="hint" id="ttsCredit"></div>
+    </div>
+
+    <div class="card">
+      <h2>开关（实时生效）</h2>
+      <div class="sw">
+        <div><div class="lbl">待机转头</div>
+          <div class="sub">空闲时随机左右看（默认关）</div></div>
+        <div class="tgl" id="tg_motion"><i></i></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ 4 设备 ══ -->
+  <section class="pane" id="p-dev">
+    <div class="card">
+      <h2>设备状态</h2>
+      <div id="devBox" class="hint">读取中…</div>
+    </div>
+    <div class="card">
+      <h2>服务器</h2>
+      <div class="hint">Fairy 服务器：<span id="srvSelf">-</span></div>
+      <div class="hint">官方服务器：<span id="srvOfficial">-</span></div>
+    </div>
+    <div class="card">
+      <h2>操作</h2>
+      <button class="wide gray" id="btnRestart" style="margin-bottom:8px">重启服务器</button>
+      <button class="wide gray" id="btnReload">重新读取配置</button>
+      <div class="hint">「重启服务器」会断开正在进行的对话，约 10 秒恢复</div>
+    </div>
+  </section>
+
+</main>
+
+<nav>
+  <button class="on" data-p="chat">对话</button>
+  <button data-p="skin">形象</button>
+  <button data-p="set">设置</button>
+  <button data-p="dev">设备</button>
+</nav>
+
+<div id="toast"></div>
+
+<script>
+/* ══ 工具 ══ */
+const $ = s => document.querySelector(s);
+const API = '/admin/api';
+let toastT = null;
+function toast(msg, ms) {
+  const t = $('#toast');
+  t.textContent = msg; t.style.display = 'block';
+  clearTimeout(toastT);
+  toastT = setTimeout(() => t.style.display = 'none', ms || 2600);
+}
+async function jget(p) {
+  const r = await fetch(API + p, {cache: 'no-store'});
+  return r.json();
+}
+async function jpost(p, body) {
+  const r = await fetch(API + p, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body || {})
+  });
+  return r.json();
+}
+function rgb2hex(a) {
+  if (!Array.isArray(a) || a.length < 3) return '#000000';
+  return '#' + a.slice(0, 3).map(v =>
+    Math.max(0, Math.min(255, v | 0)).toString(16).padStart(2, '0')).join('');
+}
+function hex2rgb(h) {
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(h);
+  return m ? [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)]
+           : [0, 0, 0];
+}
+
+/* ══ Tab 切换 ══ */
+document.querySelectorAll('nav button').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('nav button').forEach(x => x.classList.remove('on'));
+    document.querySelectorAll('.pane').forEach(x => x.classList.remove('on'));
+    b.classList.add('on');
+    $('#p-' + b.dataset.p).classList.add('on');
+    if (b.dataset.p === 'dev') loadDevice();
+  });
+});
+
+/* ══ 连接状态 ══ */
+async function pingState() {
+  try {
+    const d = await jget('/state');
+    $('#connDot').classList.remove('off');
+    $('#connTxt').textContent = '在线';
+    const map = {idle: '待机', listening: '聆听中', speaking: '说话中',
+                 connecting: '连接中', notifying: '通知'};
+    $('#devState').textContent = map[d.state] || d.state || '';
+  } catch (e) {
+    $('#connDot').classList.add('off');
+    $('#connTxt').textContent = '离线';
+  }
+}
+setInterval(pingState, 3000); pingState();
+
+/* ══ 对话 ══ */
+let lastMsgN = -1;
+async function loadChat(scroll) {
+  try {
+    const d = await jget('/chat');
+    const ms = d.messages || [];
+    if (ms.length === lastMsgN && !scroll) return;
+    lastMsgN = ms.length;
+    const box = $('#msgs');
+    box.innerHTML = ms.map(m => {
+      const me = m.role === 'user';
+      return '<div class="msg ' + (me ? 'me' : 'ai') + '">' +
+        '<div class="meta">' + (me ? '我' : 'Fairy') + ' · ' +
+        (m.time || '').slice(11, 16) + '</div>' +
+        '<div class="body">' + esc(m.content || '') + '</div></div>';
+    }).join('');
+    box.scrollTop = box.scrollHeight;
+  } catch (e) {}
+}
+function esc(s) {
+  return String(s).replace(/[&<>"]/g, c =>
+    ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+}
+async function send() {
+  const inp = $('#msgIn');
+  const t = inp.value.trim();
+  if (!t) return;
+  inp.value = '';
+  const r = await jpost('/chat/send', {text: t});
+  if (!r.ok) { toast(r.error || '发送失败'); return; }
+  setTimeout(() => loadChat(true), 400);
+}
+$('#sendBtn').addEventListener('click', send);
+$('#msgIn').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); send(); }
+});
+$('#refreshChat').addEventListener('click', () => { lastMsgN = -1; loadChat(true); });
+$('#clearWeb').addEventListener('click', async () => {
+  const r = await jpost('/chat/web-clear', {});
+  toast(r.ok ? '已清空网页上下文' : (r.error || '失败'));
+});
+$('#clearAll').addEventListener('click', async () => {
+  if (!confirm('清空全部对话记录？（服务器侧也清）')) return;
+  const r = await jpost('/chat/clear', {});
+  toast(r.ok ? '已清空全部' : (r.error || '失败'));
+  lastMsgN = -1; loadChat(true);
+});
+setInterval(() => loadChat(false), 4000);
+
+/* ══ 形象：皮肤 ══ */
+async function loadSkin() {
+  const d = await jget('/skin');
+  const cur = (d.skin || '').toLowerCase();
+  $('#skFairy').classList.toggle('cur', cur === 'fairy');
+  $('#skGeo').classList.toggle('cur', cur === 'geometry');
+  $('#srvSelf').textContent = (d.servers || {}).fairy || '-';
+  $('#srvOfficial').textContent = (d.servers || {}).geometry || '-';
+}
+async function setSkin(s) {
+  const r = await jpost('/skin', {skin: s});
+  if (r.ok) { toast('已切换到 ' + s + '，设备将重启'); loadSkin(); }
+  else toast(r.error || '切换失败');
+}
+$('#skFairy').addEventListener('click', () => setSkin('fairy'));
+$('#skGeo').addEventListener('click', () => setSkin('geometry'));
+
+/* ══ 形象：灯光 ══ */
+const LEDK = ['idle', 'connecting', 'listening', 'speaking',
+              'notifying', 'error', 'upgrading'];
+let hw = null;
+async function loadHw() {
+  hw = await jget('/hardware');
+  const c = hw.colors || {};
+  LEDK.forEach(k => { if ($('#c_' + k)) $('#c_' + k).value = rgb2hex(c[k]); });
+  const s = hw.servo || {};
+  if (s.home_yaw != null) { $('#yaw').value = Math.round(s.home_yaw); $('#yawV').textContent = Math.round(s.home_yaw); }
+  if (s.home_pitch != null) { $('#pitch').value = Math.round(s.home_pitch); $('#pitchV').textContent = Math.round(s.home_pitch); }
+  $('#tg_motion').classList.toggle('on', !!hw.auto_motion);
+}
+$('#applyLed').addEventListener('click', async () => {
+  const colors = {};
+  LEDK.forEach(k => { colors[k] = hex2rgb($('#c_' + k).value); });
+  const r = await jpost('/hw_apply', {colors: colors});
+  toast(r.ok ? '灯光已下发' : (r.error || '下发失败（设备在线？）'));
+});
+$('#resetLed').addEventListener('click', async () => {
+  const d = (hw && hw.defaults) ? hw.defaults.colors : {};
+  LEDK.forEach(k => { if (d[k]) $('#c_' + k).value = rgb2hex(d[k]); });
+  const r = await jpost('/hw_apply', {colors: d});
+  toast(r.ok ? '已恢复默认' : (r.error || '失败'));
+});
+
+/* ══ 形象：舵机 ══ */
+$('#yaw').addEventListener('input', e => $('#yawV').textContent = e.target.value);
+$('#pitch').addEventListener('input', e => $('#pitchV').textContent = e.target.value);
+$('#applyServo').addEventListener('click', async () => {
+  const r = await jpost('/hw_apply', {servo: {
+    yaw: parseFloat($('#yaw').value), pitch: parseFloat($('#pitch').value)}});
+  toast(r.ok ? '舵机已下发' : (r.error || '下发失败（设备在线？）'));
+});
+$('#centerServo').addEventListener('click', async () => {
+  const r = await jpost('/hw_apply', {servo_center: true});
+  toast(r.ok ? '已回中' : (r.error || '失败'));
+});
+$('#setDefault').addEventListener('click', async () => {
+  const y = parseFloat($('#yaw').value), p = parseFloat($('#pitch').value);
+  const r = await jpost('/hardware', {servo: {home_yaw: y, home_pitch: p}});
+  toast(r.ok ? '已设为默认角度' : (r.error || '保存失败'));
+});
+
+/* ══ 开关：待机转头 ══ */
+$('#tg_motion').addEventListener('click', async () => {
+  const on = !$('#tg_motion').classList.contains('on');
+  $('#tg_motion').classList.toggle('on', on);
+  const r = await jpost('/hardware', {auto_motion: on});
+  if (!r.ok) { toast(r.error || '保存失败'); $('#tg_motion').classList.toggle('on', !on); }
+  else toast(on ? '待机转头已开' : '待机转头已关');
+});
+
+/* ══ 设置 ══ */
+async function loadCfg() {
+  const d = await jget('/config');
+  const l = d.llm || {};
+  $('#llm_model').value = l.model_name || '';
+  $('#llm_url').value = l.base_url || '';
+  $('#llm_temp').value = l.temperature != null ? l.temperature : 0.7;
+  $('#tempV').textContent = $('#llm_temp').value;
+  $('#llm_max').value = l.max_tokens != null ? l.max_tokens : '';
+  $('#keyHint').textContent = l.api_key_set
+    ? '（已设置 ' + (l.api_key_masked || '') + '，留空不改）' : '（未设置）';
+  $('#prompt').value = d.prompt || '';
+  const t = d.tts || {};
+  $('#tts_ref').value = t.ref_audio_path || '';
+  $('#tts_text').value = t.prompt_text || '';
+  const cr = t.credit || {};
+  if (cr.name) $('#ttsCredit').textContent = '音色来源：' + cr.name +
+    (cr.note ? '（' + cr.note + '）' : '');
+}
+$('#llm_temp').addEventListener('input', e => $('#tempV').textContent = e.target.value);
+$('#btnReload').addEventListener('click', async () => {
+  await loadCfg(); await loadHw(); await loadSkin(); toast('已重新读取');
+});
+$('#btnRestart').addEventListener('click', async () => {
+  if (!confirm('重启 Fairy 服务器？对话会中断约 10 秒')) return;
+  const r = await jpost('/restart', {});
+  toast(r.ok ? '服务器正在重启…' : (r.error || '失败'));
+});
+
+/* 全局保存（设置页 + 形象页的编辑项） */
+async function saveAll() {
+  const body = {
+    llm: {
+      model_name: $('#llm_model').value.trim(),
+      base_url: $('#llm_url').value.trim(),
+      temperature: parseFloat($('#llm_temp').value),
+      max_tokens: parseInt($('#llm_max').value || '0', 10) || undefined
+    },
+    prompt: $('#prompt').value,
+    tts: {ref_audio_path: $('#tts_ref').value.trim(),
+          prompt_text: $('#tts_text').value.trim()}
+  };
+  const k = $('#llm_key').value.trim();
+  if (k) body.llm.api_key = k;
+  const r = await jpost('/config', body);
+  if (r.ok) { toast('已保存' + (r.changed && r.changed.length ? '（' + r.changed.join('、') + '）' : ''));
+              $('#llm_key').value = ''; loadCfg(); }
+  else toast(r.error || '保存失败');
+}
+window.__saveAll = saveAll;
+
+/* ══ 设备 ══ */
+async function loadDevice() {
+  try {
+    const d = await jget('/device');
+    const on = !!d.online;
+    $('#devBox').innerHTML =
+      '<div style="color:' + (on ? 'var(--cyan)' : '#c98') + '">' +
+      (on ? '设备在线' : '设备离线') + '</div>' +
+      '<div style="margin-top:6px">' + esc(d.reason || '') + '</div>' +
+      '<div style="margin-top:6px">连接数：' + (d.raw_conns != null ? d.raw_conns : '-') + '</div>';
+  } catch (e) { $('#devBox').textContent = '读取失败'; }
+}
+
+/* ══ 启动 ══ */
+(async function init() {
+  try { await loadCfg(); } catch (e) {}
+  try { await loadHw(); } catch (e) {}
+  try { await loadSkin(); } catch (e) {}
+  loadChat(true);
+})();
+</script>
+</body>
+</html>
