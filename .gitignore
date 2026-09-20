@@ -34,9 +34,8 @@ fairy-assets/
 *.safetensors
 *.onnx
 *.bin
-# ★ 例外：本项目主动发布的【免编译通用固件】（firmware-bin/ 下就这一个）
-#   有意公开的产物，已在 README 说明它不含任何私有配置
-!firmware-bin/fairy-stackchan-universal.bin
+# ★ 固件走 GitHub Release 附件（不放仓库，避免 clone 拉 11.9MB）
+#   下载地址见 firmware-bin/README.md
 # ★ 例外：不放任何二进制固件产物
 *.elf
 *.map

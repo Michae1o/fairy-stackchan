@@ -224,6 +224,26 @@ http://<你的服务器IP>:8003/m       手机版 H5（小屏优化过）
 
 ## 快速开始
 
+**两条路，看你有没有编译环境：**
+
+### 路线甲：不想编译 → 直接刷现成的固件（★ 最省事）
+
+```
+① 下载固件 → https://github.com/Michae1o/fairy-stackchan/releases/latest
+   （找 fairy-stackchan-universal.bin，11.9 MB）
+
+② 刷进去（三选一，见 [firmware-bin/README.md](firmware-bin/README.md)）
+   · M5Burner（官方工具，适合新手）
+   · esptool（命令行，一个命令）
+   · 网页版烧录器
+
+③ 刷完连上你的服务器（★ 固件不含地址，见该文档第三节）
+```
+
+> ★ 这个固件**不含作者的任何私有配置**，功能与作者自用版完全一样。
+
+### 路线乙：要自己编译 → 按 INSTALL 走
+
 见 **[INSTALL.md](INSTALL.md)**。三步：
 
 1. 准备上游项目（固件 + 服务器）
