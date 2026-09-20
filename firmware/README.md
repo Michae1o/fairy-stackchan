@@ -247,13 +247,91 @@ enum class Skin {
 
 ```
 皮肤 A（自建服务器）：
-  · 形象：替换 lvgl_assets/ 里的 GIF； ★ 若不想分发官方美术、或想要矢量清晰度，见 CREDITS.md 的「三之二、SVG 代码绘制」
+  · 形象：替换 lvgl_assets/ 里的 GIF（见下）
   · 服务器：自建（就是 SelfOtaUrl() 自动识别的那个）
 
 皮肤 B（另一套）：
   · 形象：用官方几何脸（本项目已移植），或你自己画
   · 服务器：改成你要的地址
 ```
+
+---
+
+#### ★★ Fairy 素材的硬参数表（★ 使用者最容易卡死的地方）
+
+> 上面说「替换素材」，但**具体放哪、几张、多大、什么名字、什么格式**？
+> 下面这张表是**照真实代码填的**，照做就能塞进去。
+
+| 项 | 值 | 说明 |
+|---|---|---|
+| **放置目录** | `xiaozhi-esp32/fairy-assets/` | **仓库根目录**（不是 `main/` 下面，也不是 managed_components） |
+| **加载方式** | `DEFAULT_EMOJI_COLLECTION = fairy` | 在 `main/CMakeLists.txt` 的 core-s3 分支里 |
+| **解析代码** | `scripts/build_default_assets.py` → `get_emoji_collection_path()` 的 `fairy` 分支 | ★ 本项目加的分支，把 "fairy" 这个名字映射到 `fairy-assets/` |
+| **文件格式** | `.gif` 或 `.png` | 见 `process_emoji_collection()`：`file.lower().endswith(('.png','.gif'))` |
+| **分辨率** | **320 × 240** | 屏幕分辨率（全屏显示）。本项目两个 GIF 都是这个尺寸 |
+| **张数 / 状态** | 本项目 **2 个文件**：`idle.gif`（待机）、`thinking.gif`（思考） | ★ 但通过别名表覆盖 **23 种情绪**（见下） |
+| **文件名** | 文件名（去掉扩展名）**自动成为情绪名** | 例：`happy.gif` ⇒ 情绪名 `happy` |
+| **别名的意义** | `_emote_aliases.json` 让**同一个 GIF 注册成多个情绪名** | ★ 省分区空间（本项目 23 个情绪只用了 2 个 GIF） |
+| **总大小上限** | **8 MB**（`assets` 分区，见 `partitions/v2/16m.csv`） | 本项目 2 个 GIF 合计 ≈ 2.1 MB |
+| **要不要转 C 数组** | ❌ **不用** | 直接放 `.gif`/`.png`，编译脚本会打进 `assets.bin` |
+| **转换脚本** | 无（自动） | `scripts/build_default_assets.py` 在 `idf.py build` 时自动执行 |
+
+**`_emote_aliases.json` 的格式（本项目实际内容）：**
+
+```json
+{
+  "idle.gif": ["angry","confident","confused","cool","crying","delicious",
+               "embarrassed","funny","happy","idle","kissy","laughing",
+               "listening","loving","neutral","relaxed","sad","shocked",
+               "silly","sleepy","speaking","surprised","winking"],
+  "thinking.gif": ["thinking"]
+}
+```
+
+> 键 = **GIF 文件名**（含扩展名）；值 = **要注册的情绪名数组**。
+
+**代码侧怎么取用（`lcd_display.cc`）：**
+
+```cpp
+// 服务器下发情绪字符串 ⇒ 按名字查表 ⇒ 取到对应的 GIF
+auto emoji_collection = static_cast<LvglTheme*>(current_theme_)->emoji_collection();
+auto image = emoji_collection->GetEmojiImage(emotion);   // emotion 就是别名
+⇒ 查不到时打日志 "Emoji not found: xxx"（见 emoji_collection.cc L17）
+```
+
+**★ 完整操作步骤（3 步）：**
+
+```bash
+# ① 建目录（仓库根目录，与 main/ 同级）
+mkdir xiaozhi-esp32/fairy-assets
+
+# ② 放素材（320×240 的 GIF，名字随意 —— 名字会成为情绪名）
+cp 你的形象.gif      xiaozhi-esp32/fairy-assets/
+cp 你的思考.gif      xiaozhi-esp32/fairy-assets/
+# 如需一个 GIF 覆盖多个情绪，写 _emote_aliases.json（见上）
+
+# ③ 在 main/CMakeLists.txt 的 core-s3 分支改一行
+#    set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)   ← 原值
+     set(DEFAULT_EMOJI_COLLECTION fairy)                  ← 改成这样
+#    并在 scripts/build_default_assets.py 加 fairy 分支（见 CMakeLists.append.txt 第 3 步）
+
+# 然后正常编译即可（会自动打包，无需手动转格式）
+idf.py build
+```
+
+**⚠️ 常见现象：**
+
+```
+· 日志 "Emoji not found: happy"     ⇒ 别名表里没有 happy，或 GIF 文件名与之不匹配
+· 日志 "Fairy emoji collection not found"
+                                    ⇒ 仓库根目录没有 fairy-assets/
+· 表情一直是普通脸                   ⇒ _emote_aliases.json 的键没写对（键必须是【含扩展名的文件名】）
+· 编译报 assets 分区超了             ⇒ 素材总和 > 8MB（压缩 GIF / 减帧 / 降分辨率）
+```
+
+> ⛔ **本项目不附带任何 GIF**（Fairy 形象版权属米哈游，见 [../CREDITS.md](../CREDITS.md)）。
+> ⇒ 你要么**自己画**（推荐，零版权风险），要么去 CREDITS.md 里说的网盘获取。
+> ⇒ 这份表就是为了让你能把它**塞进去**；合法性那部分看 CREDITS.md。
 
 **第 3 步**：改触发方式（可选）
 
@@ -266,6 +344,162 @@ enum class Skin {
 > ⚠️ **早期版本还有第三种「状态栏 ☰ 菜单」**，因触摸热区太小、体验差，
 > **已整体移除**（相关代码也删干净了）。想加回设备端菜单，
 > 参考 `MenuBuild()` 的思路自己接一个入口即可。
+
+---
+
+## ★ Fairy 形象是怎么做出来的（⑤ 指路 + ⑥ 参数）
+
+> 本项目的「Fairy 皮肤」**不是**一个独立模块，而是**替换了官方几何脸的几个文件**。
+> 这里说清怎么找、怎么改、我们的参数是多少。
+
+### 5.1 文件在哪（★ 指路）
+
+```
+firmware/board-core-s3/stackchan_avatar/
+├── skins/default/            ← ★ Fairy 形象就在这里（名字沿用了官方的 "default"）
+│   ├── default.h             主类（DefaultAvatar / DefaultEyes / ...）
+│   ├── default.cpp
+│   ├── eyes.cpp              ★ 眼睛：位置 / 大小 / 偏移 / 眨眼
+│   ├── mouth.cpp             ★ 嘴：位置 / 大小 / 圆角 / 开合
+│   └── speech_bubble.cpp     说话气泡：位置 / 尺寸 / 箭头
+├── avatar/
+│   ├── avatar.h              形象基类
+│   └── elements/
+│       ├── emotion.h         ★ 情绪枚举（6 种）
+│       ├── element.h         元素基类
+│       └── feature.h         特征接口（setPosition/setSize/setEmotion...）
+└── decorators/               ★ 装饰器（摸头冒爱心、甩晕等）
+    ├── heart.cpp / dizzy.cpp / angry.cpp / shy.cpp / sweat.cpp
+    └── assets/*.c            装饰器的图片数据（★ 这里是唯一含位图的地方）
+```
+
+**⇒ 改形象 = 改 `skins/default/` 那几个 `.cpp` 里的常量。**
+
+### 6.1 ★ 我们的参数（可直接照抄改）
+
+> ⚠️ **这些是「官方几何脸」的官方默认值**，本项目**没有改过**——
+> 我们只是把默认皮肤当成“几何脸 + 自定义装饰器”来用。
+> 之所以列出来，是因为**改形象就是从这几个常量下手**，给你个起点。
+
+**眼睛（`skins/default/eyes.cpp` L12-16）**
+
+```cpp
+static const int      _eye_size            = 16;             // 眼球直径
+static const Vector2i _eye_pos        = Vector2i(-70, -16);  // 眼睛基准位置
+static const Vector2i _eye_min_offset = Vector2i(-16, -16);  // 眼球能偏的最小量（看的方向）
+static const Vector2i _eye_max_offset = Vector2i( 16,  16);  // 眼球能偏的最大量
+static const Vector2i _eye_size_limit = Vector2i(  8,  32);  // 眼球缩放范围（8~32）
+```
+
+**嘴（`skins/default/mouth.cpp` L12-18）**
+
+```cpp
+static const Vector2i _mouth_pos        = Vector2i( 0, 26);  // 嘴的中心位置
+static const Vector2i _mouth_min_offset = Vector2i(-16, -16);
+static const Vector2i _mouth_max_offset = Vector2i( 16,  16);
+static const Vector2i _mouth_min_size   = Vector2i( 90,  6); // 闭嘴尺寸（宽 90 / 高 6）
+static const Vector2i _mouth_max_size   = Vector2i( 60, 50); // 张嘴尺寸（宽 60 / 高 50）
+static const int      _mouth_min_radius = 0;                 // 嘴角圆度（闭嘴）
+static const int      _mouth_max_radius = 16;                // 嘴角圆度（张嘴）
+```
+
+**说话气泡（`skins/default/speech_bubble.cpp` L12-20）**
+
+```cpp
+static const Vector2i _container_pos  = Vector2i(  0,  89);  // 气泡容器位置
+static const Vector2i _container_size = Vector2i(320,  74);  // 容器尺寸（屏宽 320）
+static const Vector2i _arrow_offset   = Vector2i( 40, -15);  // 气泡小尖角
+static const int      _text_mx             = 20;             // 文字左右边距
+static const int      _bubble_min_width    = 90;
+static const int      _bubble_max_width    = 340;
+static const int      _bubble_height       = 52;
+static const int      _bubble_min_offset_x = 66;
+static const int      _bubble_max_offset_x = 0;
+```
+
+**颜色（`skins/default/default.h` L21-22）**
+
+```cpp
+lv_color_t primaryColor   = lv_color_white();   // 前景（脸/眼）
+lv_color_t secondaryColor = lv_color_black();   // 背景
+```
+
+**⇒ 想改成你自己的形象**：改上面这些数值 + 换 `decorators/assets/*.c`（装饰器图片）。
+屏幕是 320×240，坐标以屏幕中心为原点。
+
+> ★ **注意**：`skins/default/` 里**还有一层 `assets/`**（气泡箭头等小图）。
+> 如果你要完全替换形象，把那几个 `.c` 一起换掉（它们只是 LV_IMAGE 数组，不是照片）。
+
+### 5.2 为什么叫 "default" 而不叫 "fairy"
+
+```
+官方的默认皮肤类就叫 DefaultAvatar（DefaultEyes / DefaultMouth ...）
+本项目直接沿用了它，没有另起一套类 —— 所以目录名还是 default/。
+
+★ 好处：上游更新时不会冲突（我们没新增皮肤类）
+★ 代价：看目录名不知道这是 Fairy 皮肤，得进 eyes.cpp/mouth.cpp 才明白
+```
+
+**⇒ 如果你想让它叫 `fairy/`**：把 `skins/default/` 复制成 `skins/fairy/`，
+改类名 + 在 `stackchan_geometry_display.cc` 里 include 新路径即可（注意两个地方都要改）。
+
+### 5.3 ★ 「Fairy」其实是三段拼出来的（完整链路）
+
+```
+「Fairy 效果」= 固件形象 + 服务器人设 + 音色参考
+                 ↓            ↓            ↓
+            几何脸皮肤    prompt 文字   GPT-SoVITS
+             + 装饰器     （人设）      ref_audio
+```
+
+**① 形象（固件侧）**
+
+```
+skins/default/{eyes,mouth,speech_bubble}.cpp   ← 脸长什么样（见上面 6.1 参数）
+decorators/{heart,dizzy,...}.cpp + assets/     ← 摸头冒爱心、甩晕转圈
+stackchan_geometry_display.cc L47-52           ← ★ 情绪字符串 → 枚举 的映射
+```
+
+情绪映射长这样（想加情绪就改这里）：
+
+```cpp
+// stackchan_geometry_display.cc
+if (strcmp(norm, "happy")  == 0) return Emotion::Happy;
+if (strcmp(norm, "angry")  == 0) return Emotion::Angry;
+if (strcmp(norm, "sad")    == 0) return Emotion::Sad;
+if (strcmp(norm, "doubt")  == 0) return Emotion::Doubt;
+if (strcmp(norm, "sleepy") == 0) return Emotion::Sleepy;
+return Emotion::Neutral;      // ★ 认不出来的词 ⇒ 一律 Neutral
+```
+
+**② 人设（服务器侧，不在固件里）**
+
+```
+data/.config.yaml → LLM.<模块>.prompt     ← ★ 决定说话的风格/身份/边界
+```
+
+**③ 音色（服务器侧）**
+
+```yaml
+# data/.config.yaml
+TTS:
+  ref_audio_path: <你的参考音频.wav>       # ★ 音色来源
+  prompt_text:    <参考音频对应的文字>      # ★ 必须与音频内容一致
+  prompt_lang:    zh
+```
+
+> ★ **所以「换 Fairy」不是改一个地方**：
+> 形象在固件、人设在 prompt、音色在 TTS 配置。三处都换了才是完整的「换角色」。
+> 只换形象 ⇒ 脸是 Fairy 但说话像助手；只换 prompt ⇒ 性格对但脸是几何脸。
+
+### 5.4 ⚠️ 本项目**没有**的做法（别找了）
+
+```
+✘ 没有独立的 FairyAvatar 类（直接用了官方 DefaultAvatar）
+✘ 没有 GIF 动画文件（几何脸是矢量画的，不是逐帧图）
+✘ 没有把 Fairy 的图打包进仓库（版权 + 体积原因，见 CREDITS.md）
+✘ 没有做官方的「官方皮肤美化」——我们只做了装饰器（爱心/晕眩/生气/害羞/流汗）
+```
 
 ---
 

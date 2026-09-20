@@ -191,6 +191,13 @@ NetworkResult<> Ota::CheckVersion() {
                 if (settings.GetString(item->string) != item->valuestring) {
                     settings.SetString(item->string, item->valuestring);
                 }
+                // ★ 服务器下发的 websocket.url 里带着【服务器 IP】⇒
+                //   用它推导并记住「自建 OTA 地址」（用户零操作，不用手填/口述）。
+                //   形如 ws://192.168.1.100:8000/xiaozhi/v1/
+                //    ⇒ http://192.168.1.100:8003/xiaozhi/ota/
+                if (strcmp(item->string, "url") == 0) {
+                    stackchan_skin::RememberOtaFromWsUrl(item->valuestring);
+                }
             } else if (cJSON_IsNumber(item)) {
                 if (settings.GetInt(item->string) != item->valueint) {
                     settings.SetInt(item->string, item->valueint);

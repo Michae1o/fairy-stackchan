@@ -50,23 +50,39 @@
 
 ## 二、已知限制（没做的 / 有坑的）
 
-### 1. ⚠️ 视觉接口失败 `Failed to upload photo`
+### 1. 设备拍照识图失败 `Failed to upload photo` / `MCP错误`
 
-**症状**：设备拍照后，回复"Failed to upload photo"或"MCP错误"。
+**症状**：设备拍照后，回复 "Failed to upload photo" 或 "MCP错误"。
 
 **原因**：视觉接口（`/mcp/vision/explain`）带 JWT 鉴权，
-而密钥来自配置里的 `server.auth_key`。
-**如果配置里没写这一项**，服务器每次启动会**随机生成一个新密钥**，
-设备手里缓存的旧 token 立刻失效 ⇒ 401。
+密钥来自配置里的 `server.auth_key`。
+**如果配置里没写这一项**（或写空），服务器每次启动会**随机生成一个新密钥**，
+设备手里缓存的旧 token 立刻失效 ⇒ **401 无法上传**。
 
-**解法**：在 `data/.config.yaml` 的 `server:` 段里**固定写一个** `auth_key`：
+**排查三步**：
+
+```
+① 看服务器日志，搜 "mcp/vision" 或 "401"
+     → 若出现 401 无效token，就是这个原因
+
+② 看 data/.config.yaml 的 server 段有没有 auth_key
+     → 没有 ⇒ 补上（见 INSTALL.md 第 2.3 节，那里是【必填项】）
+
+③ 补完重启服务器 + 让设备也重启一次（清掉旧 token 缓存）
+```
+
+**修法**（写死一个就行，不是第三方 Key）：
 
 ```yaml
 server:
-  auth_key: <随便一串 32+ 位随机字符串>
+  auth_key: <一串 32 位以上的随机字符串>
 ```
 
-> 生成方法：`python -c "import secrets;print(secrets.token_hex(32))"`
+> 生成：`python -c "import secrets; print(secrets.token_hex(32))"`
+>
+> ★ **这条其实属于「安装必做」**（不是可选）——
+> 因为不填的话，视觉功能会在服务器重启后随机失效。
+> INSTALL.md 的 2.3 节已经把它列为必填；这份清单放在这里只是方便你排查。
 
 ### 2. 设备端菜单：**没有**（已整体移除）
 

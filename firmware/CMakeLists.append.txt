@@ -107,3 +107,73 @@ if(BOARD_DIR STREQUAL "m5stack/core-s3")
         "boards/m5stack/core-s3/stackchan_avatar/decorators/assets/decorator_sweat.c"
         "boards/m5stack/core-s3/stackchan_avatar/skins/default/assets/default_bubble_arrow.c")
 endif()
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  【必做·第 3 步】接入 Fairy 表情包（★ 全屏 GIF 表情的来源）
+# ═══════════════════════════════════════════════════════════════════
+#
+#  这是本项目「Fairy 形象」的真正入口 —— 不是画图，而是【换表情包】。
+#
+#  ── 原理（三步）────────────────────────────────────────────────
+#    ① main/CMakeLists.txt 里给 core-s3 指定一个表情包名字（本项目用 "fairy"）
+#         set(DEFAULT_EMOJI_COLLECTION fairy)          ← 原值 noto-color-emoji_64
+#    ② scripts/build_default_assets.py 里加一个分支，
+#       让 "fairy" 这个名字解析到【仓库根目录的 fairy-assets/】
+#    ③ fairy-assets/ 里放 GIF + 情绪别名表
+#    编译时会把它们打包成 assets.bin，随固件一起烧进去
+#
+#  ── 要改的两处 ────────────────────────────────────────────────
+#
+#  ✅ 改动 1：main/CMakeLists.txt（就在上面的 elseif 链里）
+#      找到：
+#          elseif(CONFIG_BOARD_TYPE_M5STACK_CORE_S3)
+#              set(BOARD_DIR "m5stack/core-s3")
+#              set(BUILTIN_TEXT_FONT font_noto_sans_basic_20_4)
+#              set(BUILTIN_ICON_FONT font_material_symbols_20_4)
+#              set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)     ← 改成下面这行
+#      改成：
+#              set(DEFAULT_EMOJI_COLLECTION fairy)
+#
+#  ✅ 改动 2：scripts/build_default_assets.py
+#      在 get_emoji_collection_path() 函数里、`otto-gif` 分支后面，加：
+#
+#          if default_emoji_collection == 'fairy':
+#              if project_root:
+#                  fairy_path = os.path.join(project_root, 'fairy-assets')
+#                  if os.path.exists(fairy_path):
+#                      print(f"Using Fairy emoji collection: {fairy_path}")
+#                      return fairy_path
+#                  else:
+#                      print(f"Warning: Fairy emoji collection not found: {fairy_path}")
+#                      return None
+#              return None
+#
+#  ✅ 改动 3：在【仓库根目录】建 fairy-assets/，放进去：
+#
+#          fairy-assets/
+#            idle.gif                 ← 待机动画（本项目用了 1.17 MB 的那个）
+#            thinking.gif             ← 思考动画
+#            _emote_aliases.json      ← ★ 情绪别名表（把 23 种情绪词映射到 GIF）
+#
+#      _emote_aliases.json 格式（本项目实际用的）：
+#
+#          {
+#            "idle.gif": ["angry","confident","confused","cool","crying",
+#                         "delicious","embarrassed","funny","happy","idle",
+#                         "kissy","laughing","listening","loving","neutral",
+#                         "relaxed","sad","shocked","silly","sleepy",
+#                         "speaking","surprised","winking"],
+#            "thinking.gif": ["thinking"]
+#          }
+#
+#      ⛔ 本项目【不附带】GIF（Fairy 形象版权属米哈游，见 CREDITS.md）。
+#         你可以：
+#           · 换成【你自己画的 GIF】（推荐，零版权风险）
+#           · 或复用上游自带的 otto-gif 表情包（上面 otto-gif 那条分支就是干这个的）
+#
+#  ── ⚠️ 常见现象 ───────────────────────────────────────────────
+#    · 日志报 "Fairy emoji collection directory not found" ⇒ 仓库根目录没有 fairy-assets/
+#    · 表情换不动 / 一直是普通脸 ⇒ _emote_aliases.json 里的名字与 GIF 文件名对不上
+#    · 屏幕显示的还是彩色 emoji ⇒ 改动 1 没生效（还在用 noto-color-emoji_64）
+# ═══════════════════════════════════════════════════════════════════

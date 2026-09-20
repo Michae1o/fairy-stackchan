@@ -734,7 +734,7 @@ class AdminHandler:
             if host:
                 # Host 可能带端口，也可能不带（反代场景）
                 if ":" not in host:
-                    # ★ 端口不写死：从配置读 server.http_port，读不到才用 8003
+                    # ★ 端口不写死：优先读配置 server.http_port
                     port = ""
                     try:
                         cfg = self.config or {}
@@ -742,7 +742,17 @@ class AdminHandler:
                                    .get("http_port", "") or "")
                     except Exception:
                         port = ""
-                    host = host + ":" + (port or "8003")
+                    if not port:
+                        # ★ 兜底时必须【显式告警】——否则用户改了端口却不知道
+                        #   这里还在用 8003，会得到「设备连不上」这种很难查的现象
+                        port = "8003"
+                        if not getattr(self, "_warned_no_http_port", False):
+                            self._warned_no_http_port = True
+                            _w = "自适应提示"
+                            print("[" + _w + "] 配置里没有 server.http_port，OTA 地址推断将兜底使用 8003")
+                            print("[" + _w + "] 若你的 HTTP 端口不是 8003，请在 data/.config.yaml 里补：")
+                            print("[" + _w + "]     server:")
+                            print("[" + _w + "]       http_port: <你的实际端口>")
                 return "http://%s/xiaozhi/ota/" % host
         except Exception:
             pass

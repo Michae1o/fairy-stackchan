@@ -83,6 +83,57 @@ static void RememberSelfOta() {
 //   若只靠 CONFIG_OTA_URL 兜底，而它等于官方地址（开源版默认），
 //   切回 Fairy 就会连官方服务器 ⇒ 用户看到"Fairy 没指向自己服务器"。
 //   ⛔ 不能写死 IP（用户要求"自动识别"）⇒ 用【设备实际在用的地址】。
+// ★ 从 WebSocket 地址推导 OTA 地址并记住
+//   为什么要它：开源固件不含 CONFIG_OTA_URL，
+//   若让用户"对着设备念 IP"体验极差（ASR 还容易听错）。
+//   ⇒ 改为：设备连上服务器后，用【它正在连的地址】自动推导并记住。
+//   推导规则：
+//       ws://<IP>:<wsPort>/xiaozhi/v1/  ⇒  http://<IP>:<httpPort>/xiaozhi/ota/
+//       其中 httpPort 优先用 OTA 响应里的提示（存在 fairy_skin/http_port），
+//       没有则用 8003 兜底。
+void RememberOtaFromWsUrl(const std::string& ws_url) {
+    if (ws_url.empty()) {
+        return;
+    }
+    // 只处理 ws://host:port/... 形式
+    const std::string scheme = "ws://";
+    if (ws_url.compare(0, scheme.size(), scheme) != 0) {
+        return;
+    }
+    std::string rest = ws_url.substr(scheme.size());
+    // 取出 host（到 ':' 或 '/' 为止）
+    size_t colon = rest.find(':');
+    size_t slash = rest.find('/');
+    std::string host;
+    if (colon != std::string::npos) {
+        host = rest.substr(0, colon);
+    } else if (slash != std::string::npos) {
+        host = rest.substr(0, slash);
+    } else {
+        host = rest;
+    }
+    if (host.empty()) {
+        return;
+    }
+    // HTTP 端口：优先用已记录的（服务器告知），否则 8003
+    std::string http_port = "8003";
+    {
+        Settings st(kNvsNamespace, false);
+        std::string p = st.GetString("http_port", "");
+        if (!p.empty()) {
+            http_port = p;
+        }
+    }
+    std::string ota = "http://" + host + ":" + http_port + "/xiaozhi/ota/";
+    Settings st(kNvsNamespace, false);
+    if (st.GetString(kKeySelfOta, "") == ota) {
+        return;                       // 没变，不写（省 NVS）
+    }
+    Settings stw(kNvsNamespace, true);
+    stw.SetString(kKeySelfOta, ota);
+    ESP_LOGI(TAG, "已从服务器地址推导出自建 OTA 地址: %s", ota.c_str());
+}
+
 void RememberSelfOtaIfCustom(const std::string& url) {
     if (url.empty()) {
         return;
@@ -219,7 +270,61 @@ void RegisterMcpTools() {
             return std::string(buf);
         });
 
-    ESP_LOGI(TAG, "registered 2 MCP tools for skin");
+
+    // ★★ 设置自建服务器地址（通用固件必需：没编译期 CONFIG_OTA_URL 时，
+    //    用户只能靠这个入口告诉设备"我的服务器在哪"）
+    mcp.AddTool("self.server.set_ota_url",
+        "设置机器人要连接的【自建服务器】地址。"
+        "当用户说「我的服务器是 …」「把服务器改成 …」"
+        "「连我自己的服务器」「换一个服务器地址」时调用。"
+        "url 必须是完整的 OTA 地址，形如 "
+        "http://<你的电脑IP>:<端口>/xiaozhi/ota/ 。"
+        "设置后设备会重启，约 10 秒后连上新服务器。",
+        PropertyList({
+            Property("url", kPropertyTypeString, std::string("")),
+            Property("reboot", kPropertyTypeBoolean, true),
+        }),
+        [](const PropertyList& p) -> ReturnValue {
+            std::string u = p["url"].value<std::string>();
+            bool rb = p["reboot"].value<bool>();
+            if (u.empty()) {
+                return std::string("请提供服务器地址，"
+                                   "形如 http://192.168.1.100:8003/xiaozhi/ota/");
+            }
+            if (u.find("://") == std::string::npos) {
+                u = "http://" + u;
+            }
+            if (u.find("/xiaozhi/ota/") == std::string::npos) {
+                // 只给了 IP:端口 ⇒ 自动补全路径
+                while (!u.empty() && u.back() == '/') {
+                    u.pop_back();
+                }
+                u += "/xiaozhi/ota/";
+            }
+            // ① 记成"自建地址"（切皮肤要回到这儿）
+            {
+                Settings st(kNvsNamespace, true);
+                st.SetString(kKeySelfOta, u);
+            }
+            // ② 写成当前生效的 OTA 地址（ota.cc 是 NVS 优先）
+            {
+                Settings wf(kWifiNs, true);
+                wf.SetString(kKeyOtaUrl, u);
+            }
+            ESP_LOGW(TAG, "server ota url set by user: %s", u.c_str());
+            char buf[220];
+            snprintf(buf, sizeof(buf),
+                     "已记住你的服务器地址：%s%s",
+                     u.c_str(),
+                     rb ? "，设备正在重启，约10秒后连上" : "");
+            if (rb) {
+                xTaskCreate(RebootTask, "skin_reboot", 2048, nullptr, 5,
+                            nullptr);
+            }
+            return std::string(buf);
+        });
+
+    ESP_LOGI(TAG, "registered 3 MCP tools for skin");
 }
 
 }  // namespace stackchan_skin

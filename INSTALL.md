@@ -67,8 +67,61 @@ cp firmware/display/* xiaozhi-esp32/main/display/
 > - `components/`：`smooth_ui_toolkit`（第三方 UI 库，MIT）+ `mooncake` / `mooncake_log`
 > - `ota.cc`：OTA 版本检查
 > - `display/`：`lcd_display.{cc,h}`（★ 覆盖 `main/display/`，含菜单/状态栏改动）
->
-> ⚠️ **五条 cp 之外没有别的步骤** —— 上游其余文件一律不动。
+
+### ★★ 覆盖前建议先 diff（**特别是同步上游之后**）
+
+```
+★ 为什么要 diff：
+   本项目的文件是【基于某个上游版本】改的。
+   如果你已经 pull 了更新的上游，那些文件可能已被官方改过 ——
+   直接 cp 覆盖 = 把上游的新改动冲掉（可能是 bug 修复或新功能）。
+
+⇒ 所以：先看差异，再决定怎么合并。
+```
+
+**方法 A：覆盖前先看会改哪些（不实际写）**
+
+```bash
+# 只列出差异文件（不覆盖）
+diff -rq firmware/board-core-s3/ \
+         xiaozhi-esp32/main/boards/m5stack/core-s3/ \
+  | grep -v "^Only in xiaozhi-esp32"     # 忽略上游独有的文件
+```
+
+**方法 B：逐个看内容差异**
+
+```bash
+# 例：看板卡主文件的差异（本项目改了什么）
+diff -u xiaozhi-esp32/main/boards/m5stack/core-s3/m5stack_core_s3.cc \
+        firmware/board-core-s3/m5stack_core_s3.cc | less
+```
+
+**方法 C：★ 推荐 —— 用 git 管理，保留上游历史**
+
+```bash
+cd xiaozhi-esp32
+git checkout -b my-fairy            # 开个分支做改动
+# 然后把本项目的文件覆盖进去（用上面的 cp 命令）
+git status                          # 看改了哪些
+git diff                            # 看具体改了什么
+git diff --stat                     # 看改动量
+```
+
+```
+⇒ 这样你能清楚看到「本项目改了上游的哪些文件、改了多少行」，
+  上游更新时也能用 git merge / rebase 处理冲突，而不是靠 cp 硬覆盖。
+```
+
+**★ 三类文件的处理方式不同：**
+
+| 类型 | 例子 | 覆盖策略 |
+|---|---|---|
+| **本项目新增**（上游没有） | `board-common/i2c_device.*`、`PY32IOExpander_Class.*`、`components/*` | ✅ 直接放，不会冲突 |
+| **本项目大改**（基本重写） | `m5stack_core_s3.cc`（12KB → 54KB） | ⚠️ 覆盖后上游更新难合并，建议以本项目为基准 |
+| **本项目小改**（少量 patch） | `ota.cc`、`lcd_display.{cc,h}` | ⚠️ **优先 diff 后手工合并**，别盲覆盖 |
+
+> ⚠️ **本项目按「覆盖」方式交付**，属于典型的 patch 包。
+> 如果你要长期跟进上游，建议按方法 C 用 git 分支管理。
 
 ### 1.3 ★★ 必做：选对板卡（否则等于没改）
 
@@ -156,6 +209,32 @@ idf.py -p <你的串口> flash
 > **进下载模式**：多数 StackChan 需要**按住复位键约 3 秒**直到内部 LED 变色，
 > 或按住 BOOT 键再按一下 RST。
 
+#### ⚠️ 编译报 "app partition is too small" 怎么办
+
+```
+现象：
+  链接成功，最后报
+  Error: app partition is too small for binary xiaozhi.bin size 0x2ebbb0
+    - Part 'factory' 0/0 @ 0x10000 size 0x100000 (overflow 0x1ebbb0)
+
+原因：
+  上游默认用【单 app 分区表】（partitions_singleapp.csv，factory 只有 1MB），
+  而本项目的固件约 3MB ⇒ 装不下。
+
+修法：
+  上游仓库里有【现成的大分区表】，在 sdkconfig 里指定即可：
+
+      CONFIG_PARTITION_TABLE_CUSTOM=y
+      CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions/v2/16m.csv"
+      CONFIG_PARTITION_TABLE_OFFSET=0x8000
+
+  ⇒ 或者用交互式配置：
+      idf.py menuconfig
+      Partition Table → Custom partition table CSV → 填 partitions/v2/16m.csv
+
+  ★ 本项目发布者的 sdkconfig.defaults 里就是这么配的。
+```
+
 > ✅ **本项目的发布者已用「干净上游 + 覆盖本包」的方式实测编译通过**
 > （2026-09-19，ESP-IDF v6.1）。
 > 如果你的编译报 `undefined reference`，**99% 是漏了 1.3 那一步**。
@@ -184,16 +263,43 @@ cp opensource/server/patches/admin_page.html \
 按上游文档配置 `data/.config.yaml`，至少需要：
 
 ```yaml
+server:
+  # ★★ 【必填】JWT 密钥 —— 不填会影响「设备拍照识图」
+  #    真因：视觉接口 /mcp/vision/explain 用 JWT 鉴权，密钥取自这里；
+  #          若这一项为空，服务器【每次启动都会随机生成一个新密钥】，
+  #          设备缓存的旧 token 立刻失效 ⇒ 拍照回复 "Failed to upload photo"。
+  #    ⇒ 固定写一串（≥32 位）就一劳永逸。
+  auth_key: <一串 32 位以上的随机字符串>
+  http_port: 8003          # Web 控制台端口（默认 8003）
+
 LLM:
   ChatGLMLLM:            # 或任何兼容 OpenAI 协议的模型
     api_key: <你的 Key>
     model_name: deepseek-chat
 
+VLLM:                    # ★ 视觉模型（设备「看图说话」用，可与 LLM 不同服务商）
+  DeepSeekVLLM:
+    api_key: <你的 Key>
+    model_name: deepseek-chat
+    base_url: https://api.deepseek.com
+
 TTS:
   # 若用 GPT-SoVITS：
   GPTSoVITSTTS:
     api_url: http://127.0.0.1:9880
+    ref_audio_path: <你的参考音频.wav>      # 见 voice-package/README.md
+    prompt_text: <参考音频对应的文字>
 ```
+
+**生成 `auth_key` 的方法（任选）：**
+
+```bash
+python -c "import secrets; print(secrets.token_hex(32))"
+# 或直接用一串你随便敲的长字符串（≥32 位即可）
+```
+
+> ★ 这个 `auth_key` **不是**任何第三方服务的 Key，只是你自己服务器内部的签名密钥，
+> 随便写、写死就行，不要留空。
 
 ### 2.4 启动
 
