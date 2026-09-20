@@ -247,7 +247,7 @@ enum class Skin {
 
 ```
 皮肤 A（自建服务器）：
-  · 形象：替换 lvgl_assets/ 里的 GIF（见下）
+  · 形象：替换 lvgl_assets/ 里的 GIF； ★ 若不想分发官方美术、或想要矢量清晰度，见 CREDITS.md 的「三之二、SVG 代码绘制」
   · 服务器：自建（就是 SelfOtaUrl() 自动识别的那个）
 
 皮肤 B（另一套）：
