@@ -247,7 +247,7 @@ enum class Skin {
 
 ```
 皮肤 A（自建服务器）：
-  · 形象：替换 lvgl_assets/ 里的 GIF（见下）
+  · 形象：替换 fairy-assets/ 里的 GIF（★ 完整参数见下方「硬参数表」）
   · 服务器：自建（就是 SelfOtaUrl() 自动识别的那个）
 
 皮肤 B（另一套）：
