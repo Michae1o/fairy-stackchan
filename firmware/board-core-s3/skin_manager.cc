@@ -289,7 +289,7 @@ void RegisterMcpTools() {
             bool rb = p["reboot"].value<bool>();
             if (u.empty()) {
                 return std::string("请提供服务器地址，"
-                                   "形如 http://192.168.1.100:8003/xiaozhi/ota/");
+                                   "形如 http://<服务器IP>:8003/xiaozhi/ota/");
             }
             if (u.find("://") == std::string::npos) {
                 u = "http://" + u;

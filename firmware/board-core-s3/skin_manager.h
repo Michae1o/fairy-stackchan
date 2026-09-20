@@ -56,8 +56,8 @@ void RememberSelfOtaIfCustom(const std::string& url);
 // ★ 从 WebSocket 地址自动推导 OTA 地址并记住（用户零操作）
 //   设备连上服务器时，服务器下发的 ws 地址里【已经带了服务器 IP】，
 //   所以不需要用户手填/口述地址：
-//       ws://192.168.1.100:8000/xiaozhi/v1/
-//     ⇒ http://192.168.1.100:8003/xiaozhi/ota/
+//       ws://<服务器IP>:8000/xiaozhi/v1/
+//     ⇒ http://<服务器IP>:8003/xiaozhi/ota/
 //   （同 IP；ws 端口 → http 端口；HTTP 端口由服务器 OTA 响应告知）
 void RememberOtaFromWsUrl(const std::string& ws_url);
 
