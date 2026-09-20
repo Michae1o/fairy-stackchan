@@ -72,8 +72,6 @@ yt-dlp "<视频URL>"
 ffmpeg -i input.mp4 -vn -ac 1 -ar 48000 ref_raw.wav
 
 # 3) 用 Audacity 等工具，剪出 5~10 秒【纯人声】片段，导出为 reference.wav
-
- ⚠️注意：从他人视频中截取音频用于音色克隆，仍需尊重原视频的版权及原声者的权利。若原作者明确禁止此类使用，请勿进行。
 ```
 
 > 若视频里人声和 BGM 混在一起，需要人声分离（UVR5 / demucs 等）；
