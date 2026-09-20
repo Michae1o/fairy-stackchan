@@ -1,6 +1,6 @@
 # Fairy StackChan —— 把 M5Stack StackChan 变成《绝区零》Fairy
 
-> ⚠️ **非官方同人项目** —— 与米哈游 / HoYoverse 无任何关系，未获授权或认可，
+> ⚠️ **非官方同人项目** —— 与米哈游 / HoYoverse 无任何关系，未获授权或认可，米哈游 / HoYoverse相关素材
 > **禁止商业用途**。本仓库**不附带**任何《绝区零》美术素材（0 个图片文件）。
 > 详见 [CREDITS.md](CREDITS.md) 开头的法律声明。
 
