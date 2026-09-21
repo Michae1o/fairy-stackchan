@@ -285,7 +285,7 @@ esptool.py --chip esp32s3 --port /dev/ttyACM0 --baud 921600 \
 
 ## 七、想自己编一个？
 
-见 [../INSTALL.md](../INSTALL.md)（从上游拉代码 + 覆盖本项目文件 + 编译）。
+见 [../INSTALL.md](../INSTALL.md)（从上游拉代码 + 把本项目文件覆盖进去 + 编译）。
 编译完可以按需改 `main/boards/m5stack/core-s3/config.json` 里的
 `CONFIG_OTA_URL`，把服务器地址**直接编进固件**（这样连第三步都省了）。
 

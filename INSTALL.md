@@ -33,7 +33,7 @@
 
 ```text
 ① 先搭自建服务器（★ 硬前提，必须最先做）
-     拉 xiaozhi-esp32-server，覆盖本项目 server/patches/，
+     拉 xiaozhi-esp32-server，再把本项目 server/patches/ 覆盖到它里面，
      配好 data/.config.yaml（LLM / TTS / auth_key，见第 2 节）。
      ⇒ 做完你就有了【服务器地址】，后面每一步都要用它。
 
@@ -84,7 +84,7 @@ git clone https://github.com/78/xiaozhi-esp32.git
 cd xiaozhi-esp32
 ```
 
-### 1.2 覆盖本项目的改动（**三条命令，缺一不可**）
+### 1.2 把本项目的改动覆盖到上游（**5 条命令，缺一不可**）
 
 ```bash
 cd /path/to/opensource
@@ -394,7 +394,7 @@ idf.py -p <你的串口> flash
   ★ 本项目发布者的 sdkconfig.defaults 里就是这么配的。
 ```
 
-> ✅ **本项目的发布者已用「干净上游 + 覆盖本包」的方式实测编译通过**
+> ✅ **本项目的发布者已用「干净上游 + 把本包覆盖上去」的方式实测编译通过**
 > （2026-09-19，ESP-IDF v6.1）。
 > 如果你的编译报 `undefined reference`，**99% 是漏了 1.3 那一步**。
 
@@ -418,7 +418,7 @@ idf.py -p <你的串口> flash
 git clone https://github.com/xinnan-tech/xiaozhi-esp32-server.git
 ```
 
-### 2.2 覆盖本项目的改动
+### 2.2 把本项目的改动覆盖到上游
 
 ```bash
 cp opensource/server/patches/*.py \
