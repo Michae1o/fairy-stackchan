@@ -3,6 +3,9 @@
 **目录结构 = 镜像**：`patches/` 下的相对路径，直接对应服务器仓库里的路径。
 安装脚本（`tools/apply_to_server.py`）就是按这个镜像关系拷过去的。
 
+> **控制台怎么用**（电脑 `/admin` 的 8 个页签、手机 `/m` 的 4 个页签、
+> 实时生效与需重启的区别、常见疑问、以及能直接调的 API）⇒ [`../CONSOLE.md`](../CONSOLE.md)
+
 ```text
 patches/core/api/admin_handler.py     → main/xiaozhi-server/core/api/admin_handler.py
 patches/core/utils/chat_log.py        → main/xiaozhi-server/core/utils/chat_log.py

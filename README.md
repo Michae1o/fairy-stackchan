@@ -31,7 +31,7 @@
 - **点一下屏幕** → 状态栏短暂出现（左 WiFi / 右电量，约 3 秒后隐藏）
 - **屏幕菜单**：右上角 `☰` 拉开右侧抽屉（设置项）
 - **两个 MCP 工具**（让 AI 自己改设备）：设置服务器地址、切换皮肤
-- **网页控制台**：PC 版 `/admin`（状态灯、硬件开关、皮肤、TTS 试听、对话），手机版 `/m`
+- **网页控制台**：PC 版 `/admin`（状态灯、硬件开关、皮肤、TTS 试听、网页对话），手机版 `/m` —— 用法见 [`CONSOLE.md`](CONSOLE.md)
 - **音色**：GPT‑SoVITS 零样本克隆（服务器侧带 Fairy 语气后处理），不用训练
 - **切皮肤**：三种方式 —— 电源键短按 / 语音吩咐 / 控制台点卡片
 
@@ -71,6 +71,7 @@ python3 tools/apply_to_server.py   <上游 xiaozhi-server>   # ③ 把服务器�
 | 目录 / 文件 | 里面是什么 |
 |---|---|
 | [`INSTALL.md`](INSTALL.md) | **标准安装 SOP**：前提 → 固件 → 服务器 → 音色 → 验证 → 报错对照 |
+| [`CONSOLE.md`](CONSOLE.md) | **控制台使用说明**（电脑 `/admin` 8 个页签 · 手机 `/m` 4 个页签 · 常见疑问 · API） |
 | [`firmware/`](firmware/README.md) | 固件的**全部**改动源码（板卡层 / 头像与装饰器 / 本地组件 / 显示层）+ `CMakeLists.append.txt` |
 | [`firmware-bin/`](firmware-bin/README.md) | 免编译固件 + 三种刷机方法 + 首连设置 + 排错 |
 | [`server/`](server/README.md) | 服务器端**全部**改动源码（10 个文件，按镜像目录结构放） |
