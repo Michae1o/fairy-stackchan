@@ -98,7 +98,7 @@ python3 tools/apply_to_server.py   <上游 xiaozhi-server>   # ④ 把服务器�
 | [`firmware/`](firmware/README.md) | 固件的**全部**改动源码（板卡层 / 头像与装饰器 / 本地组件 / 显示层）+ `CMakeLists.append.txt` |
 | [`firmware-bin/`](firmware-bin/README.md) | 免编译固件 + 三种刷机方法 + 首连设置 + 排错 |
 | [`server/`](server/README.md) | 服务器端**全部**改动源码（10 个文件，按镜像目录结构放） |
-| [`tools/`](tools/) | 5 个脚本：生成素材 / 应用固件改动 / 应用服务器改动 / 校验产物 / **验服务器链路（模拟设备）** |
+| [`tools/`](tools/) | 6 个脚本：生成素材 / 应用固件改动 / 应用服务器改动 / 校验产物 / **验服务器链路（模拟设备）** / **一键复现（`repro_all.sh`）** |
 | [`fairy-assets/`](fairy-assets/README.md) | **空目录** —— 原本放 Fairy 表情 GIF，不随包（说明在该目录 README） |
 | [`voice-package/`](voice-package/README.md) | 音色：零样本克隆 / 微调两条路，参考音频怎么录 |
 | [`CREDITS.md`](CREDITS.md) | 出处、授权、素材与音色的版权说明 |
@@ -110,7 +110,7 @@ python3 tools/apply_to_server.py   <上游 xiaozhi-server>   # ④ 把服务器�
 
 | | 内容 |
 |---|---|
-| **有** | 上游**改动源码**（固件：板卡层 / 头像与装饰器 / 本地组件 / 显示层；服务器：10 个文件）· 5 个工具脚本 · 参数与做法文档 · 1 张控制台界面截图（`docs/`）· 免编译固件（在 Release 里） |
+| **有** | 上游**改动源码**（固件：板卡层 / 头像与装饰器 / 本地组件 / 显示层；服务器：10 个文件）· 6 个工具脚本 · 参数与做法文档 · 1 张控制台界面截图（`docs/`）· 免编译固件（在 Release 里） |
 | **没有** | ★ **上游代码本体**（`main/`、`CMakeLists.txt` 这些要自己去 clone 上游）· 任何**角色美术素材** · 参考音频 · TTS 微调权重 · 作者的内网 IP / 密钥 / 本机路径 |
 
 表情素材、音色、权重的替代办法，分别见
