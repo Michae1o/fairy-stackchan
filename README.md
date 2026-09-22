@@ -240,20 +240,24 @@ http://<你的服务器IP>:8003/m       手机版 H5（小屏优化过）
 
 ### 路线甲：不想编译 → 刷现成的固件（省事，但首次要中转一次）
 
-> ⚠️ **注意**：这条路**不能**让你「刷完就直接连自己的服务器」——
-> 通用固件不含地址，第一次开机只能先连官方服务器，
-> 再用语音把地址告诉设备。**详见 [firmware-bin/README.md 第三节](firmware-bin/README.md)。**
+> ★ 这条路**可以**做到「刷完就直接连自己的服务器」——
+> 通用固件不含地址，但设备**自己的配网页**里可以填（不用重新编译，也不用念 IP）：
+> 进配网模式 → 手机连设备热点 → 「高级选项」页签里填 `http://<你的IP>:<端口>/xiaozhi/ota/`
+> → 保存 → 重启即可。**详见 [firmware-bin/README.md 第三节](firmware-bin/README.md)。**
 
 ```
 ① 下载固件 → https://github.com/Michae1o/fairy-stackchan/releases/latest
-   （找 fairy-stackchan-universal.bin，11.9 MB）
+   （找 fairy-stackchan-universal.bin，约 11.9 MB）
 
 ② 刷进去（三选一，见 [firmware-bin/README.md](firmware-bin/README.md)）
    · M5Burner（官方工具，适合新手）
    · esptool（命令行，一个命令）
    · 网页版烧录器
 
-③ 刷完连上你的服务器（★ 固件不含地址，见该文档第三节）
+③ 让设备连上你的服务器（三选一，见该文档第三节）
+   · ★ 在设备配网页的「高级选项」页签里填地址（免编译首选）
+   · 编译期写进 CONFIG_OTA_URL（刷完即连，给朋友用最省）
+   · 对着设备语音说地址（需要能连上官方服务器）
 ```
 
 > ★ 这个固件**不含作者的任何私有配置**，功能与作者自用版完全一样。
