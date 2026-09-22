@@ -1,6 +1,8 @@
 # INSTALL —— 从零装到能说话（标准 SOP）
 
 > 这份文档是**唯一的安装依据**。按顺序做，每步都给「怎么知道这一步成了」。
+> ★ **章节顺序 = 动手顺序**：§1 服务器（线一，不碰设备）→ §2 固件（线二）
+> → §3 合流（线三）。总览见 §0.7。
 > ⛔ 别跳步：跳步不会立刻报错，而是在很后面才炸（文档里标了「顺序反了会怎样」）。
 >
 > 本仓库给的是**改动源码 + 脚本**，不是能直接用的整套工程 ——
@@ -24,7 +26,7 @@
 | **ESP-IDF** | **v6.1**（本项目实测版本；v5.x 理论可行但未测） | 编译固件 |
 | Python | 3.10+ | 跑 `tools/` 里的脚本 |
 | **esptool** | **v5**（`python -m esptool` 能跑） | 烧录（命令行方式） |
-| GPT‑SoVITS | 任意近期版本 | 音色（可选，见 §3） |
+| GPT‑SoVITS | 任意近期版本 | 音色（可选，见 §1.5） |
 
 ESP‑IDF 装法见官方文档（Windows 用官方安装器最省事）。
 装完在新终端里 `idf.py --version` 能出版本号才算好。
@@ -32,7 +34,7 @@ ESP‑IDF 装法见官方文档（Windows 用官方安装器最省事）。
 ### 0.3 网络
 
 - 本项目**联网**的地方：① 下载三个仓库 ② ESP‑IDF 首次编译时自动下载托管组件
-  （`managed_components/`，见 §1.4 报错说明）③ 服务器装依赖
+  （`managed_components/`，见 §2.4 报错说明）③ 服务器装依赖
 - **GitHub 连不上时**（国内常见）用这两种之一：
 
 ```bash
@@ -54,8 +56,8 @@ curl -L -o xiaozhi-esp32.tar.gz https://codeload.github.com/78/xiaozhi-esp32/tar
 | 仓库 | 是什么 | 你要做什么 |
 |---|---|---|
 | **本仓库** `fairy-stackchan` | **只有改动**（源码文件 + 脚本 + 文档） | `git clone` 下来，命令里的路径都以它为准 |
-| 上游**固件** `78/xiaozhi-esp32` | 完整可编译的固件工程 | 把本仓库的固件改动**打上去**（§1.2） |
-| 上游**服务器** `xinnan-tech/xiaozhi-esp32-server` | 完整可运行的服务器 | 把本仓库的服务器改动**打上去**（§2.2） |
+| 上游**固件** `78/xiaozhi-esp32` | 完整可编译的固件工程 | 把本仓库的固件改动**打上去**（§2.2） |
+| 上游**服务器** `xinnan-tech/xiaozhi-esp32-server` | 完整可运行的服务器 | 把本仓库的服务器改动**打上去**（§1.2） |
 
 > ⚠️ 文档里凡是写 `xiaozhi-esp32/...` 的路径，都指**上游固件**；
 > 写 `tools/...`、`firmware/...` 的，指**本仓库**。先 `cd` 到你 clone 的本仓库。
@@ -63,13 +65,11 @@ curl -L -o xiaozhi-esp32.tar.gz https://codeload.github.com/78/xiaozhi-esp32/tar
 ### 0.6 两条捷径（不做也行）
 
 - 只想看效果、不想编译 ⇒ 直接刷 Release 固件，见 [`firmware-bin/README.md`](firmware-bin/README.md)
-- 不想自己画表情 ⇒ 用 `tools/make_face.py` 一条命令生成（§1.3）
+- 不想自己画表情 ⇒ 用 `tools/make_face.py` 一条命令生成（§2.3）
 
 ---
 
-## §1 固件
-
-### 1.0 ★ 推荐工序（三条线，照这个顺序，别跳）
+### 0.7 ★ 推荐工序（三条线，照这个顺序，别跳）
 
 > **顺序不是随便定的：先服务器、后设备。**
 > 服务器那条线**不用设备、不用编译就能验证**，改错的代价小；
@@ -81,15 +81,15 @@ curl -L -o xiaozhi-esp32.tar.gz https://codeload.github.com/78/xiaozhi-esp32/tar
 **线一：服务器（先做，不碰设备）**
 
 ```text
-① 拉服务器源码 + 装依赖（§2.1）
-② 打服务器改动：tools/apply_to_server.py（§2.2）
+① 拉服务器源码 + 装依赖（§1.1）
+② 打服务器改动：tools/apply_to_server.py（§1.2）
 ③ 配置：★ 先【用上游默认件】跑通 —— 本地 ASR（零 Key）、先不接自建音色；
-     大模型填你自己的 Key（§2.3）
-④ 起服务：python app.py ⇒ /admin 返回 200（§2.4）
+     大模型填你自己的 Key（§1.3）
+④ 起服务：python app.py ⇒ /admin 返回 200（§1.4）
 ⑤ ★★ 服务器线的判据（不刷固件）：用仓库里的模拟设备脚本跑一遍
      python3 tools/test_server_e2e.py --audio ref.wav
      ⇒ 四个 ✅ 才算通：服务器 hello ｜ ASR 识别 ｜ LLM 回答 ｜ TTS 音频帧 > 0
-⑥ 换件：接上你的音色（GPT-SoVITS :9880，§3）⇒ 再跑一次 ⑤
+⑥ 换件：接上你的音色（GPT-SoVITS :9880，§1.5）⇒ 再跑一次 ⑤
      ⇒ 这一步过了，「服务器那条线」才算真的通
 ```
 
@@ -99,15 +99,15 @@ curl -L -o xiaozhi-esp32.tar.gz https://codeload.github.com/78/xiaozhi-esp32/tar
 ⑦ 先备份出厂固件（★ 唯一不可逆的一步，别跳过）：
      python -m esptool --chip esp32s3 -p <串口> read-flash 0 0x1000000 factory-backup.bin
      判据：得到 16,777,216 字节的文件，存好
-⑧ 装 ESP-IDF v6.1（§1.4.0）⇒ 新终端里 idf.py --version 能出版本号
-⑨ 拉本包 + 上游固件（§1.1）；拷一份【独立副本】来改/编（§1.4 铁律 1）
-⑩ 打固件改动：python3 tools/apply_to_upstream.py <上游副本>（§1.2）
+⑧ 装 ESP-IDF v6.1（§2.4.0）⇒ 新终端里 idf.py --version 能出版本号
+⑨ 拉本包 + 上游固件（§2.1）；拷一份【独立副本】来改/编（§2.4 铁律 1）
+⑩ 打固件改动：python3 tools/apply_to_upstream.py <上游副本>（§2.2）
 ⑪ 生成素材：tools/make_face.py --out fairy-assets
-     ⇒ tools/verify_artifact.py --gif-dir fairy-assets（§1.3）
-⑫ 编译：set-target → build → merge-bin（§1.4）
+     ⇒ tools/verify_artifact.py --gif-dir fairy-assets（§2.3）
+⑫ 编译：set-target → build → merge-bin（§2.4）
      判据必须含 **build/xiaozhi.bin 存在**
-⑬ 验产物：tools/verify_artifact.py build/merged-binary.bin（§1.4）
-⑭ 烧录（§1.5）⇒ 串口出现 `WS: Connecting to ws://…`（§1.6）
+⑬ 验产物：tools/verify_artifact.py build/merged-binary.bin（§2.4）
+⑭ 烧录（§2.5）⇒ 串口出现 `WS: Connecting to ws://…`（§2.6）
 ```
 
 **线三：合流（让设备连到你的服务器）**
@@ -149,15 +149,133 @@ curl -L -o xiaozhi-esp32.tar.gz https://codeload.github.com/78/xiaozhi-esp32/tar
    ⇒ 记住：**进程 0 + 无 error = 中断，不是失败**，别急着重装工具链
 ```
 
-### 1.1 拿到三个仓库
+## §1 线一：服务器（`xinnan-tech/xiaozhi-esp32-server`）★ 先做，不碰设备
+
+> 这一线**不用设备、不用编译**就能验证完 —— 也是「先跑通，再换件」的前半段。
+
+设备要能对话，必须有服务器：**语音识别 → 大脑（DeepSeek）→ 音色（TTS）** 都在这边。
+
+### 1.1 拿源码 + 装依赖
+
+```bash
+git clone https://github.com/xinnan-tech/xiaozhi-esp32-server.git
+cd xiaozhi-esp32-server/main/xiaozhi-server
+pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+```
+
+> PyPI 慢/超时就换镜像（上面用的是清华源）。装完能 `python -c "import app"` 不报错才算好。
+
+### 1.2 把本仓库的服务器改动打上去
+
+```bash
+cd fairy-stackchan
+python3 tools/apply_to_server.py <上游服务器目录>
+```
+
+**改动共 10 个文件 + 2 处就地接线**（已逐项对照上游 `main` 核过）：
+
+| 类别 | 文件 |
+|---|---|
+| **新增**（6，上游没有这些文件） | `core/api/admin_handler.py`（控制台后端）、`core/api/admin_page.html`（电脑版 `/admin`）、`core/api/admin_mobile.html`（手机版 `/m`）、`core/api/device_registry.py`（设备连接注册表）、`core/api/chat_llm.py`（控制台网页对话）、`core/utils/chat_log.py`（对话记录 + 状态灯） |
+| **覆盖**（4，上游有、本项目改了） | `core/api/ota_handler.py`、`core/utils/dialogue.py`、`core/handle/sendAudioHandle.py`、`core/providers/tts/gpt_sovits_v2.py` |
+| **就地接线**（2，脚本自动插入几行） | `core/http_server.py`（挂 `/admin` 路由）、`core/connection.py`（连接登记/注销） |
+
+⛔ 接线那两个**不接就是坏的**：`/admin` 直接 404，或控制台能开但看不到设备、下发没反应。
+接线代码与判据（6 个字符串）见 [`server/README.md`](server/README.md) §①-2。
+
+每个文件干什么，见 [`server/README.md`](server/README.md)。
+
+**判据**：脚本最后打印 **13/13 自检通过**；覆盖的那 4 个文件都是**只加不删**。
+⛔ 覆盖是**整文件覆盖**（改动量 +14~+80 行），上游更新后要手工合并 ——
+如果上游版本差得多，脚本会警告，别硬套。
+
+> ⚠️ 只装一部分会连环报错：`admin_handler.py` 自己要 `import` `chat_log` / `chat_llm`，
+> 缺了它们控制台直接 500。要装就 10 个一起装。
+
+> ★★ **控制台不用单独搭建** —— 它就是这一步带来的：
+> `core/api/admin_page.html`（电脑版 `/admin`）+ `core/api/admin_mobile.html`（手机版 `/m`）
+> 是新增文件，接线那一步（`http_server.py` 里 `admin_handler.register(app)`）会在服务器启动时
+> 自动把这两个路由挂上去。⇒ **打完这一步的补丁、起服务，控制台就有了**，没有额外的安装步骤。
+> 怎么用（8 个页签 / 手机端差别 / 常见疑问 / 能直接调的 API）见 [`CONSOLE.md`](CONSOLE.md)。
+
+### 1.3 配置 `config.yaml`
+
+在 `main/xiaozhi-server/data/.config.yaml`（或 `config.yaml`）里填这几项：
+
+```yaml
+server:
+  ip: 0.0.0.0
+  port: 8000                 # 设备用 WebSocket 连这个
+  http_port: 8003            # OTA / 控制台用这个
+
+LLM:
+  DeepSeekLLM:
+    api_key: <你的 DeepSeek Key>
+    model_name: deepseek-chat
+
+TTS:
+  GPTSoVITS:                 # 音色（见 §1.5）
+    api_url: http://127.0.0.1:9880
+```
+
+（键名以你拿到的上游版本为准；上面是作者在用的那套名字。）
+
+### 1.4 起服务 + 判据
+
+```bash
+cd <上游服务器>/main/xiaozhi-server
+python app.py
+```
+
+**成功判据**（四条都通才算服务器 OK）：
+
+1. 控制台 `http://<服务器IP>:8003/admin` → **HTTP 200**，页面标题 `Fairy 控制台`
+2. 手机版 `http://<服务器IP>:8003/m` → **200**
+3. `http://<服务器IP>:8003/admin/api/state` → **200**（返回 JSON）
+   —— 它 200 说明「对话记录 + 设备注册表」都接对了
+4. ★★ **整条语音链路**（不用设备）：
+
+```bash
+python3 tools/test_server_e2e.py --audio <一段 5~10 秒人声 wav> \
+        --url ws://<服务器IP>:8000/xiaozhi/v1/
+```
+
+它会**模拟一台设备**：握手 → 发音频 → 看服务器有没有回
+`ASR 识别` / `LLM 回答` / `TTS 音频帧`。四个 ✅ 才算这条线通了：
+
+```text
+服务器 hello ✅ ｜ ASR 识别 ✅ ｜ LLM 回答 ✅ ｜ TTS 音频帧 > 0 ✅
+```
+
+没过时它会直接告诉你去查哪一环（ASR 配置 / 大模型 Key / 音色服务），
+**别带着没通的服务器去刷固件** —— 那样你会去怀疑固件。
+
+> **控制台怎么用**（电脑版 8 个页签各干什么、手机版 `/m` 差在哪、
+> 「实时生效 vs 需重启」、常见疑问、能直接调的 API）⇒ [`CONSOLE.md`](CONSOLE.md)
+
+### 1.5 线一的最后一步：换上你的音色（GPT‑SoVITS）
+
+本仓库**不带**参考音频和微调权重（音频版权属原声者；权重是大文件）。
+
+- **零样本克隆（推荐，不用训练）**：3~10 秒干净人声当参考，起 GPT‑SoVITS 的 API（默认 9880），
+  服务器 §1.3 指向它即可。参考音频怎么录/怎么切、两条路的取舍 ⇒ [`voice-package/README.md`](voice-package/README.md)
+- **微调（进阶）**：要训就用你自己的数据集；本项目的做法与参数也在同一份文档里
+- 服务器侧还有一层 **Fairy 语气后处理**（暖度/削尖/降调/语速），
+  **默认全部关闭**，想要就在 `gpt_sovits_v2.py` 里打开
+
+---
+
+## §2 线二：固件（服务器通了再动设备）
+
+### 2.1 拿到三个仓库
 
 ```bash
 git clone <本仓库>  fairy-stackchan
 git clone https://github.com/78/xiaozhi-esp32.git          # 上游固件
-# 服务器稍后再拿（§2.1）
+# 服务器稍后再拿（§1.1）
 ```
 
-### 1.2 把本仓库的固件改动打到上游（★ 用脚本，别手抄）
+### 2.2 把本仓库的固件改动打到上游（★ 用脚本，别手抄）
 
 ```bash
 cd fairy-stackchan
@@ -175,7 +293,7 @@ python3 tools/apply_to_upstream.py <上游 xiaozhi-esp32 目录>
 ⑥ 往 sdkconfig.defaults.esp32s3 追加唤醒词 Hi Fairy（上游只带「你好小智」）
 ⑦ 改 main/CMakeLists.txt：显式列出子目录源文件 + PRIV_REQUIRES + 表情包名改 fairy
 ⑧ 改 scripts/build_default_assets.py：加 fairy 表情包分支
-⑨ 建 fairy-assets/：写情绪别名表（★ GIF 素材要你自己放，见 §1.3）
+⑨ 建 fairy-assets/：写情绪别名表（★ GIF 素材要你自己放，见 §2.3）
 ```
 
 **判据**：脚本每个文件都打印「已覆盖 / 已存在，跳过」，最后一行是
@@ -192,7 +310,7 @@ python3 tools/apply_to_upstream.py <上游 xiaozhi-esp32 目录>
   细节见 [`firmware/README.md`](firmware/README.md)。
 - **`--dry-run`** 可以先看会改什么不落盘；**`--no-cmake`** 只覆盖文件不动 CMake。
 
-### 1.3 表情素材（设备上的那张脸）
+### 2.3 表情素材（设备上的那张脸）
 
 **本仓库不带 GIF**（版权原因）。三种拿法：
 
@@ -221,9 +339,9 @@ python3 tools/verify_artifact.py --gif-dir fairy-assets     # 先验规格，再
 python3 tools/apply_to_upstream.py <上游目录> --gif-dir fairy-assets
 ```
 
-### 1.4 编译
+### 2.4 编译
 
-#### 1.4.0 先把 ESP-IDF 装好（Windows）
+#### 2.4.0 先把 ESP-IDF 装好（Windows）
 
 1. 到乐鑫官方文档下 **ESP-IDF v6.1 的 Windows 安装器**（或离线安装包），一路下一步；
    中途会让你选组件，**默认全选就行**（要 Python 与工具链）
@@ -238,7 +356,7 @@ idf.py --version          # 出版本号（v6.1）即 OK
 > Linux / macOS：`git clone --recursive ESP-IDF` 后跑 `./install.sh esp32s3`，
 > 之后每次 `source ./export.sh`（或写进 `~/.bashrc`）。
 
-#### 1.4.1 编译
+#### 2.4.1 编译
 
 ```bash
 cd <上游副本 xiaozhi-esp32 目录>
@@ -249,7 +367,7 @@ idf.py build                   # 判据：Project build complete.
 
 - **首次编译 15~25 分钟**：会联网下载托管组件（`managed_components/`）并从零编 LVGL 等
   —— 之后增量编译 2~4 分钟
-- **`set-target` 会重新生成 `sdkconfig`** ⇒ 这就是为什么改动要写进 `sdkconfig.defaults*`（§1.2）
+- **`set-target` 会重新生成 `sdkconfig`** ⇒ 这就是为什么改动要写进 `sdkconfig.defaults*`（§2.2）
 - 编译完合成整机固件（含引导 + 分区表，方便整片刷）：
 
 ```bash
@@ -273,11 +391,11 @@ python3 tools/verify_artifact.py <上游副本>/build/merged-binary.bin
 
 | 现象 | 先查什么 |
 |---|---|
-| 停在配置阶段不动、进程数 0、没有 error | 僵尸进程互抢（见 §1.0 铁律 5） |
-| `app partition is too small` | `sdkconfig` 重建顺序错了（§1.0 铁律 2） |
+| 停在配置阶段不动、进程数 0、没有 error | 僵尸进程互抢（见 §0.7 铁律 5） |
+| `app partition is too small` | `sdkconfig` 重建顺序错了（§0.7 铁律 2） |
 | 卡在 `Downloading…` | 网络拉不到托管组件 ⇒ 挂代理重试 |
 
-### 1.5 烧录
+### 2.5 烧录
 
 **先找到串口**（这一步别猜）：
 
@@ -327,7 +445,7 @@ python -m esptool --chip esp32s3 -p <串口> write-flash \
 > 偏移量看分区表（本项目用 `partitions/v2/16m.csv`，`assets` 那行的 offset 列）。
 > 拿不准就整片重烧 `0x0`，慢一点但不会错。
 
-**备份与回滚**（§1.0 ⓪ 已经做过备份的话，这里是恢复）：
+**备份与回滚**（§0.7 ⓪ 已经做过备份的话，这里是恢复）：
 
 ```bash
 # 读出厂固件（★ 只有这一步不可逆，务必先做）
@@ -336,7 +454,7 @@ python -m esptool --chip esp32s3 -p <串口> read-flash 0 0x1000000 factory-back
 python -m esptool --chip esp32s3 -p <串口> -b 460800 write-flash 0x0 factory-backup.bin
 ```
 
-### 1.6 设备端确认（这一步过了才算固件 OK）
+### 2.6 设备端确认（这一步过了才算固件 OK）
 
 `idf.py monitor` 里依次看到：
 
@@ -345,107 +463,13 @@ python -m esptool --chip esp32s3 -p <串口> -b 460800 write-flash 0x0 factory-b
 3. **`WS: Connecting to ws://<你的服务器IP>:8000/xiaozhi/v1/`** ← 这条是关键判据
 4. 对它说唤醒词（**Hi Fairy** 或 **你好小智**），屏幕有反应
 
-> 连不上服务器时**先别怀疑固件**：§2.5 有「让设备连过来」的正规做法。
+> 连不上服务器时**先别怀疑固件**：§3 有「让设备连过来」的正规做法。
 
 ---
 
-## §2 服务器（`xinnan-tech/xiaozhi-esp32-server`）
+## §3 线三：合流（让设备连到你的服务器）
 
-设备要能对话，必须有服务器：**语音识别 → 大脑（DeepSeek）→ 音色（TTS）** 都在这边。
-
-### 2.1 拿源码 + 装依赖
-
-```bash
-git clone https://github.com/xinnan-tech/xiaozhi-esp32-server.git
-cd xiaozhi-esp32-server/main/xiaozhi-server
-pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
-```
-
-> PyPI 慢/超时就换镜像（上面用的是清华源）。装完能 `python -c "import app"` 不报错才算好。
-
-### 2.2 把本仓库的服务器改动打上去
-
-```bash
-cd fairy-stackchan
-python3 tools/apply_to_server.py <上游服务器目录>
-```
-
-**改动共 10 个文件 + 2 处就地接线**（已逐项对照上游 `main` 核过）：
-
-| 类别 | 文件 |
-|---|---|
-| **新增**（6，上游没有这些文件） | `core/api/admin_handler.py`（控制台后端）、`core/api/admin_page.html`（电脑版 `/admin`）、`core/api/admin_mobile.html`（手机版 `/m`）、`core/api/device_registry.py`（设备连接注册表）、`core/api/chat_llm.py`（控制台网页对话）、`core/utils/chat_log.py`（对话记录 + 状态灯） |
-| **覆盖**（4，上游有、本项目改了） | `core/api/ota_handler.py`、`core/utils/dialogue.py`、`core/handle/sendAudioHandle.py`、`core/providers/tts/gpt_sovits_v2.py` |
-| **就地接线**（2，脚本自动插入几行） | `core/http_server.py`（挂 `/admin` 路由）、`core/connection.py`（连接登记/注销） |
-
-⛔ 接线那两个**不接就是坏的**：`/admin` 直接 404，或控制台能开但看不到设备、下发没反应。
-接线代码与判据（6 个字符串）见 [`server/README.md`](server/README.md) §①-2。
-
-每个文件干什么，见 [`server/README.md`](server/README.md)。
-
-**判据**：脚本最后打印 **13/13 自检通过**；覆盖的那 4 个文件都是**只加不删**。
-⛔ 覆盖是**整文件覆盖**（改动量 +14~+80 行），上游更新后要手工合并 ——
-如果上游版本差得多，脚本会警告，别硬套。
-
-> ⚠️ 只装一部分会连环报错：`admin_handler.py` 自己要 `import` `chat_log` / `chat_llm`，
-> 缺了它们控制台直接 500。要装就 10 个一起装。
-
-### 2.3 配置 `config.yaml`
-
-在 `main/xiaozhi-server/data/.config.yaml`（或 `config.yaml`）里填这几项：
-
-```yaml
-server:
-  ip: 0.0.0.0
-  port: 8000                 # 设备用 WebSocket 连这个
-  http_port: 8003            # OTA / 控制台用这个
-
-LLM:
-  DeepSeekLLM:
-    api_key: <你的 DeepSeek Key>
-    model_name: deepseek-chat
-
-TTS:
-  GPTSoVITS:                 # 音色（见 §3）
-    api_url: http://127.0.0.1:9880
-```
-
-（键名以你拿到的上游版本为准；上面是作者在用的那套名字。）
-
-### 2.4 起服务 + 判据
-
-```bash
-cd <上游服务器>/main/xiaozhi-server
-python app.py
-```
-
-**成功判据**（四条都通才算服务器 OK）：
-
-1. 控制台 `http://<服务器IP>:8003/admin` → **HTTP 200**，页面标题 `Fairy 控制台`
-2. 手机版 `http://<服务器IP>:8003/m` → **200**
-3. `http://<服务器IP>:8003/admin/api/state` → **200**（返回 JSON）
-   —— 它 200 说明「对话记录 + 设备注册表」都接对了
-4. ★★ **整条语音链路**（不用设备）：
-
-```bash
-python3 tools/test_server_e2e.py --audio <一段 5~10 秒人声 wav> \
-        --url ws://<服务器IP>:8000/xiaozhi/v1/
-```
-
-它会**模拟一台设备**：握手 → 发音频 → 看服务器有没有回
-`ASR 识别` / `LLM 回答` / `TTS 音频帧`。四个 ✅ 才算这条线通了：
-
-```text
-服务器 hello ✅ ｜ ASR 识别 ✅ ｜ LLM 回答 ✅ ｜ TTS 音频帧 > 0 ✅
-```
-
-没过时它会直接告诉你去查哪一环（ASR 配置 / 大模型 Key / 音色服务），
-**别带着没通的服务器去刷固件** —— 那样你会去怀疑固件。
-
-> **控制台怎么用**（电脑版 8 个页签各干什么、手机版 `/m` 差在哪、
-> 「实时生效 vs 需重启」、常见疑问、能直接调的 API）⇒ [`CONSOLE.md`](CONSOLE.md)
-
-### 2.5 让设备连过来（★ 不用重刷固件）
+> 前面两线各自验通了，这一步把它们接起来：**让设备去找你那台服务器**。
 
 设备默认可能指向别处，正规做法是**在设备自己的配网页里改**：
 
@@ -457,18 +481,6 @@ python3 tools/test_server_e2e.py --audio <一段 5~10 秒人声 wav> \
 
 这个输入框写的是设备 NVS 里的 `wifi/ota_url`（和固件用的同一个键），
 所以**免编译、免重刷**；也可以在设备上语音念 IP 让它自己改。
-
----
-
-## §3 音色（GPT‑SoVITS）
-
-本仓库**不带**参考音频和微调权重（音频版权属原声者；权重是大文件）。
-
-- **零样本克隆（推荐，不用训练）**：3~10 秒干净人声当参考，起 GPT‑SoVITS 的 API（默认 9880），
-  服务器 §2.3 指向它即可。参考音频怎么录/怎么切、两条路的取舍 ⇒ [`voice-package/README.md`](voice-package/README.md)
-- **微调（进阶）**：要训就用你自己的数据集；本项目的做法与参数也在同一份文档里
-- 服务器侧还有一层 **Fairy 语气后处理**（暖度/削尖/降调/语速），
-  **默认全部关闭**，想要就在 `gpt_sovits_v2.py` 里打开
 
 ---
 
@@ -490,15 +502,15 @@ python3 tools/test_server_e2e.py --audio <一段 5~10 秒人声 wav> \
 | 现象 | 真因 | 怎么办 |
 |---|---|---|
 | `idf.py: command not found` | ESP‑IDF 环境没装好 / 没开新终端 | 重开终端，跑 IDF 的 `export.ps1`（或快捷方式）后再试 |
-| `undefined reference to ...`（板卡类符号） | §1.2 的 `CMakeLists.txt` 清单没打上 | 用 `apply_to_upstream.py` 重跑；手工的话检查 `main/CMakeLists.txt` 里那几行 |
+| `undefined reference to ...`（板卡类符号） | §2.2 的 `CMakeLists.txt` 清单没打上 | 用 `apply_to_upstream.py` 重跑；手工的话检查 `main/CMakeLists.txt` 里那几行 |
 | `undefined reference to bmi270_init` | 托管组件没下载成功（网络） | 删 `build/` 和 `managed_components/` 重编（别自己手加 BMI270 的 `.c`） |
 | `app partition is too small` | 分区表没生效 | 确认 `sdkconfig.defaults*` 里有 `CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions/v2/16m.csv"`，且**先拷 defaults 再删 sdkconfig** 重建 |
-| 只有「你好小智」能唤醒，Hi Fairy 不行 | 唤醒词没写进 `sdkconfig.defaults.esp32s3`（写进 `sdkconfig` 会被冲掉） | 见 §1.2 ⑥，重跑脚本 |
+| 只有「你好小智」能唤醒，Hi Fairy 不行 | 唤醒词没写进 `sdkconfig.defaults.esp32s3`（写进 `sdkconfig` 会被冲掉） | 见 §2.2 ⑥，重跑脚本 |
 | 卡在下载 / 编译停住不动 | 联网下载托管组件失败 | 挂代理重试；或先编一次让它把组件拉全 |
 | 串口打不开 / 被占用 | 有别的程序占着（monitor、串口助手） | 全关掉；换根数据线；换 USB 口 |
-| 编译成功但设备不显示表情 | GIF 没打进 assets | `verify_artifact.py` 看「内嵌 GIF 数量」，0 就是没打进去 ⇒ 重跑 §1.3 |
-| 设备一直连不上服务器 | OTA 地址没配对 | 按 §2.5 在配网页填；对着串口日志看它到底在连哪个 IP |
-| 浏览器 `/admin` 404 | 服务器改动没打全 | 重跑 §2.2，确认 13/13 |
+| 编译成功但设备不显示表情 | GIF 没打进 assets | `verify_artifact.py` 看「内嵌 GIF 数量」，0 就是没打进去 ⇒ 重跑 §2.3 |
+| 设备一直连不上服务器 | OTA 地址没配对 | 按 §3 在配网页填；对着串口日志看它到底在连哪个 IP |
+| 浏览器 `/admin` 404 | 服务器改动没打全 | 重跑 §1.2，确认 13/13 |
 | 控制台点开关「自己跳回去」 | 服务器没把状态落盘 | 本项目已修（`_persist_hw_value`）；自改过就要照做 |
 | 服务器有输出但设备没声音 | 采样率不一致 / 音频流没关连接 / WiFi 省电 | 三条都要满足：采样率严格相等、响应带 `Connection: close`、关 WiFi modem sleep |
 
@@ -506,4 +518,3 @@ python3 tools/test_server_e2e.py --audio <一段 5~10 秒人声 wav> \
 
 卡在哪一步，就到 `tools/verify_artifact.py` 和对应目录的 `README.md` 里找判据 ——
 **先拿判据确认事实，再动手改**。
-

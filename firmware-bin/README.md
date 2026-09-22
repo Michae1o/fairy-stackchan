@@ -45,7 +45,7 @@ md5：   034b0b58516625017e382d29341e83fc
 
 > ⚠️ **关于表情素材**：这个预编译固件里**内嵌了 2 个作者自绘的表情 GIF**（约 2 MB）。
 > 素材版权不属于本项目 —— 自用没问题，**二次分发 / 商用前请读 [CREDITS.md](../CREDITS.md)**。
-> 想换成自己的：会编译 ⇒ 见 [INSTALL.md](../INSTALL.md) §1.3；
+> 想换成自己的：会编译 ⇒ 见 [INSTALL.md](../INSTALL.md) §2.3；
 > **不会编译 ⇒ 用 [tools/make_face.py](../tools/make_face.py) 生成一套再编**。
 
 ---
@@ -125,7 +125,7 @@ M5Burner 需去官网下载安装（<https://docs.m5stack.com/zh_CN/download>）
 · 用 idf.py 编译：       地址写进 sdkconfig.defaults*（config.json 那项 idf.py 不读）
 ```
 
-⚠️ 写死地址的固件**别公开分发**（会泄露你的内网 IP）。细节见 [../INSTALL.md](../INSTALL.md) §1.4。
+⚠️ 写死地址的固件**别公开分发**（会泄露你的内网 IP）。细节见 [../INSTALL.md](../INSTALL.md) §2.4。
 
 #### 路径 B（★ 免编译推荐）：在设备配网页填地址
 

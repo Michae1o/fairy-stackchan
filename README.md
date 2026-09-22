@@ -100,7 +100,7 @@ python3 tools/apply_to_server.py   <上游 xiaozhi-server>   # ③ 把服务器�
 如果你自己写代码不多、主要让 AI Agent（Claude Code / Cursor / Hermes 等）帮你做，
 把这个仓库丢给它，按这个顺序让它做：
 
-1. 读 **`INSTALL.md`**（它是唯一安装依据）；**动手顺序按 §1.0 的三条线**
+1. 读 **`INSTALL.md`**（它是唯一安装依据）；**动手顺序按 §0.7 的三条线**
    —— **先服务器线**（不用设备就能验证）→ 再固件线 → 最后合流
 2. 用 **`tools/apply_to_upstream.py`** 打固件改动、`tools/apply_to_server.py` 打服务器改动
    —— 别让它手抄补丁，这两个脚本带自检

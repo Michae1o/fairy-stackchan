@@ -20,7 +20,7 @@
     Linux/WSL：  find build -path "*core-s3*" -name "*.obj" | wc -l
     Windows PS： (Get-ChildItem build -Recurse -Filter *.obj |
                   Where-Object FullName -like '*core-s3*').Count
-    ⇒ 实测 11 个左右；**0 个 = 板卡没选对**（见 INSTALL §1.2/§1.4）
+    ⇒ 实测 11 个左右；**0 个 = 板卡没选对**（见 INSTALL §2.2/§2.4）
 
 □ verify_artifact.py 对产物跑一遍：
     python3 tools/verify_artifact.py build/merged-binary.bin
