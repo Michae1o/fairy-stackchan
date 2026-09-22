@@ -21,6 +21,8 @@
 *.jpeg
 *.bmp
 *.svg
+# ★ 例外：docs/ 下的界面截图（文档配图，不是美术素材；见 CREDITS.md 的说明）
+!docs/*.png
 # ★ 例外：代码里内嵌的 LVGL 小图标（是 C 数组，不是美术作品，必须入库）
 !firmware/**/assets/*.c
 # 表情包目录（使用者自己往里放 GIF —— 那是本地文件）
