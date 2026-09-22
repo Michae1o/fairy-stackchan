@@ -33,7 +33,13 @@
 
 ★ 使用方式（不是 clone 本项目就能跑）：
    1) 先拉上游 → 2) 再把本目录的文件【覆盖】进去 → 3) 编译
-   具体命令见 INSTALL.md 第 1.2 节（6 步）
+   具体命令见 INSTALL.md 第 1.2 ~ 1.4 节（6 步覆盖 + 3 处 CMake 改动）
+
+   ★ 省事办法：本仓库自带脚本，一条命令做完（幂等、可重复跑）
+       python3 tools/apply_to_upstream.py /path/to/xiaozhi-esp32
+   ★ 编完别只看退出码 —— 用本仓库脚本校验产物：
+       python3 tools/verify_artifact.py build/xiaozhi.bin
+   ★ 只想刷现成固件（不编译）⇒ 见 firmware-bin/README.md
 
 ★ 为什么不做成 fork？：
    本项目改动的是【板卡适配层 + 服务器插件】，属于典型的「外挂式改动」。
@@ -48,6 +54,31 @@
 ```
 
 > 详细署名与各素材版权，见 [CREDITS.md](CREDITS.md)。
+
+---
+
+## 给「只用 AI Agent 操作」的用户
+
+把这两样丢给你的 agent，它就能按图施工：
+
+```text
+① INSTALL.md     标准安装 SOP（前提 / 顺序 / 每步判据 / 常见报错）
+② tools/ 两个脚本
+     apply_to_upstream.py   把本仓库改动一键应用到上游（对应 1.2 ~ 1.4）
+     verify_artifact.py     校验编出来的固件对不对（★ 不看退出码，看内容）
+```
+
+★ **请明确告诉 agent 这三条**（否则很容易出问题）：
+
+```text
+1) 要改构建配置，写 sdkconfig.defaults*；⛔ 不要写 sdkconfig（每次构建会被重建）
+2) 覆盖位置别想当然：板卡 → main/boards/m5stack/core-s3/；
+   显示层 → main/display/；本地组件 → 仓库根 components/
+3) 不要动 managed_components/（组件管理器管的，改动会被回退）；不要 push 本仓库
+```
+
+★ 还要提前告诉它一件事：**Fairy 的全屏表情 GIF 不在本仓库里**（版权原因，见 1.7 节），
+不放 GIF 时设备用的是彩色 emoji —— 功能都正常，只是「脸」不一样。
 
 ---
 

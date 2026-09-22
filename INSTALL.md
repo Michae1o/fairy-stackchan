@@ -123,6 +123,10 @@ cd xiaozhi-esp32
 > **前提**：下面命令里的 `firmware/...` 指的是【本项目包】里的目录，**不是上游**。
 > 先 `cd` 到你自己放本项目的位置（把示例路径换成你的实际路径）：
 > `cd /path/to/opensource` ⇒ 例如 `cd ~/fairy-stackchan`。
+>
+> ★ **别手抄下面这些命令**：本仓库自带脚本，一条命令做完 1.2 ~ 1.4（幂等、可重复跑）：
+> `python3 tools/apply_to_upstream.py /path/to/xiaozhi-esp32`
+> 手工做的理由只能是「想看懂每一步改了什么」。
 
 ```bash
 cd /path/to/opensource
@@ -259,15 +263,58 @@ idf.py reconfigure
 ⇒ 链接期报一堆 undefined reference（舵机/传感器/装饰器/几何脸全丢）
 ```
 
-**做法**：把 `firmware/CMakeLists.append.txt` 的**全部内容**，
-粘贴到 `xiaozhi-esp32/main/CMakeLists.txt` 里这一行的**后面**：
+**★ 省事办法（推荐）**：跑一次本仓库自带的脚本，1.2 ~ 1.4 一次做完，
+幂等、不会插错位置，锚点找不到会直接报错（不会静默跳过）：
+
+```bash
+python3 tools/apply_to_upstream.py /path/to/xiaozhi-esp32
+```
+
+**手工做的话，一共 3 处，缺一不可：**
+
+**① 子目录源文件**（不做 ⇒ 舵机/传感器/表情素材全部链接失败）
+
+把 `firmware/CMakeLists.append.txt` 里的**代码部分**
+（`if(BOARD_DIR STREQUAL "m5stack/core-s3")` … `endif()` 那段）
+粘贴到 `main/CMakeLists.txt` 里这一行的**后面**：
 
 ```cmake
 list(APPEND SOURCES ${BOARD_SOURCES})
 ```
 
-> ⚠️ 那段代码有 `if(BOARD_DIR STREQUAL "m5stack/core-s3")` 包裹，
+**② PRIV_REQUIRES 里加 4 个组件**（不做 ⇒ `fatal error: smooth_ui_toolkit.hpp: No such file`）
+
+在 `main/CMakeLists.txt` 的 `idf_component_register(... PRIV_REQUIRES ...)`
+列表里，找到 `xiaozhi-fonts` 那一行，在**它后面**加上：
+
+```cmake
+                        lvgl
+                        smooth_ui_toolkit
+                        mooncake
+                        mooncake_log
+```
+
+> ★ `lvgl` 上游列表里也没有，一起加。缩进对齐即可（24 个空格）。
+
+**③ 表情包名（Fairy 全屏动画的来源）**
+
+```text
+a) main/CMakeLists.txt 里 CoreS3 那一段：
+     set(DEFAULT_EMOJI_COLLECTION noto-color-emoji_64)
+   ⇒ 改成
+     set(DEFAULT_EMOJI_COLLECTION fairy)
+
+b) scripts/build_default_assets.py 的 get_emoji_collection_path() 里，
+   在 otto-gif 分支后面加 fairy 分支（代码见 CMakeLists.append.txt 第 3 步）
+
+c) 仓库根建 fairy-assets/ 放 GIF（见下面 1.7）
+```
+
+> ⚠️ ① 那段有 `if(BOARD_DIR STREQUAL "m5stack/core-s3")` 包裹，
 > 只对 CoreS3 生效，不影响其他板卡。
+>
+> ⚠️ **②③ 不做也「能编过」，但舵机/传感器会缺、表情也不对** ——
+> 这就是「明明编译成功了，但效果和作者的不一样」最常见的原因。
 
 ### 1.5 ★ 设置服务器地址（这里是关键，请读完）
 
@@ -498,6 +545,8 @@ idf.py -p COM3 monitor         # 看串口日志；退出按 Ctrl + ]
 set-target   → Target set to 'esp32s3'
 reconfigure  → -- Configuring done
 build        → 结尾 Project build complete.，且 build/ 下生成了 xiaozhi.bin
+校验产物     → python3 tools/verify_artifact.py build/xiaozhi.bin  ⇒ 打印「🎉 全部通过」
+               （查双唤醒词 + 两个 MCP 工具 + 无内网 IP + 有没有内嵌表情）
 flash        → Hash of data verified. / Leaving... Hard resetting via RTS pin
 monitor      → WS: Connecting to ws://<你的服务器IP>:8000/...   ← 这才是连上了
 ```
@@ -567,6 +616,36 @@ undefined reference to `XXX'
 app partition is too small
   ⇒ 见上面那节（分区表）
 ```
+
+---
+
+### 1.7 ★ 表情素材（GIF）—— 本仓库【不附带】，请自备
+
+设备「全屏表情」来自 `xiaozhi-esp32/fairy-assets/` 里的 GIF：
+
+```text
+fairy-assets/
+  idle.gif               待机 / 大多数情绪
+  thinking.gif           思考中
+  _emote_aliases.json    情绪别名表（脚本会按你的文件名自动生成）
+```
+
+**⛔ 本仓库不附带任何 GIF**：Fairy 的美术形象版权属于米哈游
+（见 [CREDITS.md](CREDITS.md)），不能随包分发。所以你要知道：
+
+```text
+① 不放 GIF   ⇒ 设备用上游默认的彩色 emoji（功能全正常，只是脸不一样）
+② 放自己的   ⇒ 把自己做的 / 有权使用的 GIF 起名叫 idle.gif / thinking.gif，
+               放进 fairy-assets/，重跑一次 apply_to_upstream.py，重新编译
+③ 用上游的   ⇒ 把 main/CMakeLists.txt 里 CoreS3 那段的
+               set(DEFAULT_EMOJI_COLLECTION fairy) 改成 otto-gif
+```
+
+★ **这就是「编译成功 ≠ 和作者效果一样」的主要差别所在** ——
+其它功能（摸头爱心、甩晕、双唤醒词、菜单、皮肤切换）都不依赖 GIF。
+
+★ 写进文档里的判据：编完后 `build/generated_assets.bin` 会比没有表情时大 1 MB 以上；
+用 `python3 tools/verify_artifact.py <固件>` 会打印「内嵌 GIF 数量」。
 
 ---
 
