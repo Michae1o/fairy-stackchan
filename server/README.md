@@ -13,7 +13,7 @@ patches/core/utils/chat_log.py        → main/xiaozhi-server/core/utils/chat_lo
 
 ## 文件清单
 
-### 新增文件（上游没有）
+### 新增文件（★ 上游 `main` 里没有这些文件，已逐个核过）
 
 | 文件 | 作用 |
 |---|---|

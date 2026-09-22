@@ -145,7 +145,7 @@ UP 主本人分享了网盘（链接见上），免登录、无提取码。
 ⇒ 因此本仓库【只提供教程】，音频与微调权重请你自行准备：
 
    · 参考音频：去上面那个 UP 主的公开视频里取一段（几秒到几十秒即可）
-               具体怎么截、截多长，见 audio/README.md
+               具体怎么截、截多长，见 voice-package/README.md §5
    · 微调权重：按 voice-package/README.md 的步骤自己跑一遍
                （GPT-SoVITS 零样本其实不需要微调，用参考音频即可）
 ```
@@ -198,11 +198,12 @@ Release 里的 fairy-stackchan-universal.bin **内嵌了 2 个表情动画 GIF**
 ```
 
 **⇒ 你拿到本项目后，Fairy 的 GIF 素材需要自己准备**
-（做法见 `firmware/README.md`；也可以只玩几何脸皮肤）。
+（做法见 `firmware/README.md`；**或直接用 `tools/make_face.py` 生成一套**；
+也可以只玩几何脸皮肤）。
 
 ---
 
-## 三之二、另一条路：用代码画（★ 只是思路与参考，本仓库不含实现）
+## 三之二、另一条路：用代码画（★ 本仓库提供 `tools/make_face.py`）
 
 **参考项目：[Chengzhibense/Fairy-DSH](https://github.com/Chengzhibense/Fairy-DSH)（作者：B 站「橙汁本色」）**
 
@@ -236,6 +237,13 @@ Release 里的 fairy-stackchan-universal.bin **内嵌了 2 个表情动画 GIF**
 
 **本项目建议**：若你要公开分发 Fairy 皮肤，**可以考虑**走「用代码画」这条路
 （用代码画出风格，而不是直接分发官方/二创的美术文件）—— 用哪种由你决定。
+
+> ★ **本仓库已经按这个思路提供了一个现成实现**：[`tools/make_face.py`](tools/make_face.py)
+> 用 Python + Pillow 画出「发光的六层同心环眼睛」（参数：半径 / 颜色 / 光晕 / 双高光 / 呼吸幅度，
+> 全在文件顶部），**一条命令**产出设备能吃的素材：
+> `python3 tools/make_face.py --out fairy-assets`
+> 它**不含任何美术文件**，也不依赖 Fairy-DSH 的代码 —— 是本项目自己写的（MIT）。
+> 嫌它不好看就改那几行参数，或照下面的思路自己画。
 
 > ⚠️ 注意：即使是"用代码画"，如果刻意复刻了受版权保护的具体角色形象，
 > 仍有风险。建议画成"风格相似"而非"精确复刻"。

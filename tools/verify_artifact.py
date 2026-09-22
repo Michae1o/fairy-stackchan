@@ -5,6 +5,7 @@
 用法：
     python3 tools/verify_artifact.py build/merged-binary.bin   # 整机固件（推荐）
     python3 tools/verify_artifact.py build/xiaozhi.bin         # 只有 app 也能查
+    python3 tools/verify_artifact.py --gif-dir fairy-assets    # 只查表情素材（刷机前）
 
 判据（不需要真机）：
   ✅ 必须存在：双唤醒词、两个 MCP 工具（服务器地址/皮肤）
@@ -16,7 +17,9 @@
 
 退出码：0 = 通过；1 = 有 ❌ 项。
 """
+import json
 import re
+import struct
 import sys
 from pathlib import Path
 
@@ -49,10 +52,112 @@ def find_assets(path):
     return None
 
 
+# ══════════════════════════════════════════════════════════════════
+#  表情素材（GIF）规格检查 —— 刷机前先验，别刷进去才发现不显示
+# ══════════════════════════════════════════════════════════════════
+GIF_W, GIF_H = 320, 240        # 屏幕尺寸（固件按 1:1 贴图，尺寸不对会错位/被裁）
+GIF_MAX_EACH = 8 * 1048576     # 单文件上限（assets 分区放得下）
+GIF_MAX_ALL = 8 * 1048576      # 合计上限（assets 分区约 8MB）
+
+
+def gif_meta(data):
+    """不依赖 Pillow 解析 GIF：宽高、帧数、总时长、循环次数。"""
+    if data[:6] not in (b"GIF87a", b"GIF89a"):
+        return None
+    w, h = struct.unpack("<HH", data[6:10])
+    frames, total_ms, i = 0, 0, 0
+    while True:
+        j = data.find(b"\x21\xf9\x04", i)      # Graphic Control Extension
+        if j < 0:
+            break
+        frames += 1
+        total_ms += struct.unpack("<H", data[j + 4:j + 6])[0] * 10
+        i = j + 8
+    loops = None
+    k = data.find(b"NETSCAPE2.0")
+    if k > 0 and len(data) >= k + 16:
+        loops = struct.unpack("<H", data[k + 14:k + 16])[0]
+    return dict(w=w, h=h, frames=frames, ms=total_ms, loops=loops, size=len(data))
+
+
+def check_gifs(d):
+    d = Path(d)
+    files = sorted(p for p in d.glob("*.gif"))
+    print("校验表情素材：%s" % d)
+    if not files:
+        print("  ❌ 目录里没有 .gif ⇒ 设备上不会有全屏表情")
+        print("     生成一套：python3 tools/make_face.py --out %s" % d)
+        return 1
+    bad, total = 0, 0
+    print("  文件                            尺寸        帧数   帧间隔  循环   体积")
+    for f in files:
+        m = gif_meta(f.read_bytes())
+        if not m:
+            print("  ❌ %-28s 不是 GIF 文件" % f.name)
+            bad += 1
+            continue
+        total += m["size"]
+        size_ok = m["size"] <= GIF_MAX_EACH
+        dim_ok = (m["w"], m["h"]) == (GIF_W, GIF_H)
+        loop_ok = m["loops"] == 0
+        anim_ok = m["frames"] > 1
+        mark = "✅" if (size_ok and dim_ok and loop_ok and anim_ok) else "⚠️"
+        if not (dim_ok and anim_ok):
+            bad += 1
+        print("  %s %-28s %4dx%-4d  %5d  %5dms  %-5s  %.2fMB"
+              % (mark, f.name, m["w"], m["h"], m["frames"],
+                 m["ms"] // max(m["frames"], 1), "无限" if loop_ok else str(m["loops"]),
+                 m["size"] / 1048576.0))
+        if not dim_ok:
+            print("        ❌ 尺寸必须是 %dx%d（现在 %dx%d）⇒ 重导一遍" % (GIF_W, GIF_H, m["w"], m["h"]))
+        if not anim_ok:
+            print("        ⚠️ 只有 1 帧 ⇒ 是静态图，不会动（静态也能用，但设备上看不出动画）")
+        if not loop_ok:
+            print("        ⚠️ 循环次数不是「无限」⇒ 播完会停")
+        if not size_ok:
+            print("        ⚠️ 单文件超过 8MB ⇒ 减少帧数或颜色数")
+
+    ali = d / "_emote_aliases.json"
+    if ali.is_file():
+        try:
+            table = json.loads(ali.read_text(encoding="utf-8"))
+        except Exception as e:
+            print("  ❌ _emote_aliases.json 解析失败：%r" % (e,))
+            bad += 1
+            table = None
+        if table:
+            names = {n for f in files for n in (f.name,)}
+            missing = [k for k in table if k not in names]
+            if missing:
+                print("  ⚠️ 别名表指向了不存在的文件：%s" % ", ".join(missing))
+            else:
+                n_emo = sum(len(v) for v in table.values() if isinstance(v, list))
+                print("  ✅ _emote_aliases.json：%d 个文件 / %d 种情绪" % (len(table), n_emo))
+    else:
+        print("  ⚠️ 没有 _emote_aliases.json ⇒ 情绪名和文件对不上，设备只能用默认那张")
+        print("     （make_face.py 会自动生成；自定义素材要照它的格式写一份）")
+
+    print("  合计 %.2f MB %s" % (total / 1048576.0,
+                            "✅" if total <= GIF_MAX_ALL else "⚠️ 超过 8MB，可能要精简"))
+    if total > GIF_MAX_ALL:
+        bad += 1
+    print("")
+    if bad:
+        print("❌ 有 %d 项不通过 ⇒ 先把素材改对再刷。" % bad)
+        return 1
+    print("🎉 素材规格正确，可以接进固件了（apply_to_upstream.py --gif-dir）。")
+    return 0
+
+
 def main():
     if len(sys.argv) < 2:
         print(__doc__)
         return 2
+    if sys.argv[1] in ("--gif-dir", "--gifs"):
+        if len(sys.argv) < 3:
+            print("用法：python3 tools/verify_artifact.py --gif-dir <放 GIF 的目录>")
+            return 2
+        return check_gifs(sys.argv[2])
     path = Path(sys.argv[1])
     if not path.is_file():
         print("❌ 找不到文件：" + str(path))

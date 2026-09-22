@@ -1,173 +1,144 @@
-# 发布 / 使用前自检清单（CHECKLIST）
+# 自检清单（CHECKLIST）
 
-> 这份清单有两部分：
-> - **第一部分**：你拿到本项目后，怎么确认自己装对了
-> - **第二部分**：本项目的**已知限制**（哪些没做、哪些有坑）
->
-> 发布者自己用的检查（脱敏、体积）放在最后。
+> 两部分：**一、装完怎么确认自己装对了**；**二、已知限制**（哪些没做、哪些有坑）。
+> 第三部分是作者发布前用的检查（使用者可无视）。
 
 ---
 
-## 一、装完之后自检（照着做一遍）
+## 一、装完自检
 
-### 1. 固件编译
+### 1. 固件
 
-```
-□ idf.py build 成功（没有 undefined reference）
-    若报 undefined reference ⇒ 99% 是漏了 INSTALL.md 1.2 的某条 cp
-    或漏了 1.4 的「组件依赖」追加（PRIV_REQUIRES）
+```text
+□ idf.py build 成功，没有 undefined reference
+    报错时先看 INSTALL.md §5 的对照表（真因大概率是 CMakeLists 清单没打上，
+    或托管组件没下全 —— 不是「漏了某条 cp」那么简单）
 
-□ 编译产物 build/merged-binary.bin 存在
+□ build/xiaozhi.bin 存在（只看「编译成功」会被「✅完成但❌没产物」骗）
 
-□ 验证板卡源码真被编译（这一步能确认板卡选对了）：
-    find build -path "*__idf_main.dir*core-s3*" -name "*.obj" | wc -l
-    ⇒ 应该是 20+ 个；**0 个 = 板卡没选对**（INSTALL 1.3）
+□ 板卡源码真被编进去了（确认板卡选对了）：
+    Linux/WSL：  find build -path "*core-s3*" -name "*.obj" | wc -l
+    Windows PS： (Get-ChildItem build -Recurse -Filter *.obj |
+                  Where-Object FullName -like '*core-s3*').Count
+    ⇒ 实测 11 个左右；**0 个 = 板卡没选对**（见 INSTALL §1.2/§1.4）
+
+□ verify_artifact.py 对产物跑一遍：
+    python3 tools/verify_artifact.py build/merged-binary.bin
+    ⇒ 双唤醒词 ✅、两个 MCP 工具 ✅、无内网 IP ✅、内嵌 GIF > 0
 ```
 
 ### 2. 设备通电后
 
-```
-□ 串口能看到 OTA 请求 → 设备连上服务器
-□ 摸头顶 → 开心表情 + 冒爱心
-□ 用力甩 → 晕眩转圈
-□ 说话   → 嘴一开一合
-□ 点屏幕 → 状态栏短暂出现（左 WiFi / 右电量，约 3 秒后隐藏）
+```text
+□ 串口出现 WS: Connecting to ws://<你的服务器IP>:8000/...（连上服务器）
+□ 屏幕有待机表情，且**在动**（GIF 播起来了 —— 不动 ⇒ 素材没打进去）
+□ 喊唤醒词能唤醒：「Hi Fairy」和「你好小智」两个都要试
+□ 摸头顶      → 开心表情 + 冒爱心
+□ 用力甩      → 晕眩转圈
+□ 说话        → 嘴一开一合
+□ 点一下屏    → 状态栏短暂出现（左 WiFi / 右电量，约 3 秒后隐藏）
 □ 按电源键短按 → 切换皮肤（重启约 10 秒）
 ```
 
 ### 3. 服务器 / 控制台
 
-```
-□ 浏览器打开 http://<你的服务器IP>:<http_port>/admin（默认 8003）
-   ⚠️ 若你改过 http_port：把【完整地址】给设备（编译期 CONFIG_OTA_URL，
-      或设备配网页里填）—— 设备不再按 8003 猜端口（见 INSTALL.md 1.5）
+```text
+□ http://<服务器IP>:8003/admin → 200，标题「Fairy 控制台」
+□ http://<服务器IP>:8003/m    → 200（手机版）
+□ http://<服务器IP>:8003/admin/api/state → 200（对话记录 + 设备注册表都通了）
 □ 能改大模型 / 人设 / 音色，保存后重启生效
-□ 皮肤页：点另一张卡片能切换（点当前那张会提示"已经是"）
-□ 视觉页：能填模型名 / Base URL / Key（可以和对话模型不同的服务商）
-□ 让设备拍张照试试 → Fairy 能描述看到的东西
-   若报 "Failed to upload photo" ⇒ 见下面「已知坑」第 1 条
+□ 皮肤页：点另一张卡片能切换（点当前那张会提示「已经是」）
+□ 控制台开关点完后**不会自己跳回去**（会跳 = 服务器没落盘）
+□ 让设备拍张照 → Fairy 能描述看到的东西
+    报 "Failed to upload photo" / "MCP错误" ⇒ 见「已知坑」第 1 条
 ```
 
 ---
 
 ## 二、已知限制（没做的 / 有坑的）
 
-### 1. 设备拍照识图失败 `Failed to upload photo` / `MCP错误`
+### 1. 设备拍照识图失败：`Failed to upload photo`
 
-**症状**：设备拍照后，回复 "Failed to upload photo" 或 "MCP错误"。
+**原因**：视觉接口带 JWT 鉴权，密钥来自配置里的 `server.auth_key`。
+**没写这一项**（或写空）时，服务器每次启动会**随机生成新密钥**，
+设备缓存的旧 token 立刻失效 ⇒ 401 上传失败。
 
-**原因**：视觉接口（`/mcp/vision/explain`）带 JWT 鉴权，
-密钥来自配置里的 `server.auth_key`。
-**如果配置里没写这一项**（或写空），服务器每次启动会**随机生成一个新密钥**，
-设备手里缓存的旧 token 立刻失效 ⇒ **401 无法上传**。
-
-**排查三步**：
-
-```
-① 看服务器日志，搜 "mcp/vision" 或 "401"
-     → 若出现 401 无效token，就是这个原因
-
-② 看 data/.config.yaml 的 server 段有没有 auth_key
-     → 没有 ⇒ 补上（见 INSTALL.md 第 2.3 节，那里是【必填项】）
-
-③ 补完重启服务器 + 让设备也重启一次（清掉旧 token 缓存）
-```
-
-**修法**（写死一个就行，不是第三方 Key）：
+**排查**：① 服务器日志搜 `mcp/vision` / `401` ② 看 `data/.config.yaml` 的 `server.auth_key`
+③ 补上后**服务器和设备都重启一次**（清旧 token）。
 
 ```yaml
 server:
-  auth_key: <一串 32 位以上的随机字符串>
+  auth_key: <一串 32 位以上的随机字符串>   # 生成：python -c "import secrets; print(secrets.token_hex(32))"
 ```
 
-> 生成：`python -c "import secrets; print(secrets.token_hex(32))"`
->
-> ★ **这条其实属于「安装必做」**（不是可选）——
-> 因为不填的话，视觉功能会在服务器重启后随机失效。
-> INSTALL.md 的 2.3 节已经把它列为必填；这份清单放在这里只是方便你排查。
+> ★ 这条其实属于**安装必做**：不填的话，视觉功能会在服务器重启后随机失效。
 
-### 2. 设备端菜单：**没有**（已整体移除）
+### 2. 设备端菜单（右侧抽屉）：代码在，但点不中
 
-早期版本做过「状态栏 ☰ → 侧边抽屉菜单」，实测**触摸热区太小、点不中**，
-体验很差，所以**整体移除了**（浮层、状态栏图标、热区、相关代码全删）。
+状态栏最右有个 `☰`，本来可以拉出右侧抽屉改设置；
+**实测这个图标的点击热区不生效**（点击常无反应），**未解决**。
 
-**现在所有可调项都在 Web 控制台**，设备上只保留「电源键切皮肤」这个最常用的操作。
-
-> 想自己加回设备端菜单：`lcd_display.cc` 里还留着 `MenuBuild()` 的思路可参考。
+⇒ 日常所有可调项都走 **Web 控制台**（`/admin`、手机 `/m`），
+设备上只保留「电源键短按切皮肤」这个最常用的操作。
 
 ### 3. 舵机跟随（视线跟踪）：只有开关，**没有人脸检测**
 
-Web 控制台有个「舵机跟随」开关，但**实际的人脸检测逻辑没实现**。
-打开它不会让设备跟着你的脸转。
+控制台有「舵机跟随」开关，但**人脸检测逻辑没实现** —— 打开它不会跟着你的脸转。
 
-> 想实现：需要摄像头出图 → 人脸检测 → 换算角度 → 驱动舵机。
-> 目前 `m5stack_core_s3.cc` 里预留了开关位，检测部分要自己写。
+> 想实现：摄像头出图 → 人脸检测 → 换算角度 → 驱动舵机。
+> `m5stack_core_s3.cc` 里预留了开关位，检测部分要自己写。
 
 ### 4. 遥控器（K151-R）：**未实现**
 
-### 5. 情绪词表未完全对齐
+### 5. 情绪词表两套皮肤各认各的
 
-固件的几何脸只认 6 种情绪：`neutral / happy / angry / sad / doubt / sleepy`。
-（对照：Fairy 的 GIF 表情包通过别名表认 23 种 —— **两套皮肤各认各的**，见 `firmware/README.md`）
-而服务器（大模型）可能下发别的词（如 `relaxed`）⇒ 会**退化成普通脸**。
+- **几何脸**只认 6 种：`neutral / happy / angry / sad / doubt / sleepy`
+- **Fairy GIF** 通过别名表认 23 种
 
-> 影响轻微（表情变化少一点）。
-> 想扩展：改 `stackchan_avatar/avatar/elements/emotion.h` 加映射。
+服务器（大模型）下发别的词（如 `relaxed`）时，几何脸会退化成普通脸 —— 影响轻微。
+想扩展：改 `stackchan_avatar/avatar/elements/emotion.h` 加映射。
 
 ### 6. 唤醒词是**编译期固定**的
 
-当前固件写死两个：`Hi Fairy` / `你好小智`（在 `sdkconfig.defaults.esp32s3`）。
-**不能在运行时改**。
-
-> 想换成别的词：需要自训练 ESP-SR WakeNet 模型（官方有申请通道，约 5~10 工作日）。
+写死两个：`Hi Fairy` / `你好小智`（在 `sdkconfig.defaults.esp32s3`），**运行时不能改**。
+想换词要自训练 ESP‑SR WakeNet 模型（官方有申请通道，约 5~10 工作日）。
 
 ### 7. 采样率警告
 
-串口可能有 `Server sample rate 16000 does not match device output 24000`。
-实听通常没问题，介意的话把服务器 TTS 输出采样率调成 24000。
+串口可能出现 `Server sample rate 16000 does not match device output 24000`。
+实听通常没问题；介意就把服务器 TTS 输出采样率调成 24000。
 
 ### 8. 版本兼容性
 
-本项目在 **ESP-IDF v6.1** 下实测通过；v5.x 理论可用但**未实测**。
+本项目在 **ESP‑IDF v6.1** 下实测通过；v5.x 理论可用但**未实测**。
+上游两个仓库都在快速更新 ⇒ `apply_to_*.py` 打不上时看脚本的报错（锚点找不到会直接报，不会静默跳过）。
 
 ---
 
-## 三、发布者自检（你要把它发出去时看）
+## 三、发布者自检（要发出去时看）
 
-```
+```text
 □ CREDITS.md 里的版权声明你同意
-□ 包内没有你的 API Key
-     搜 "api_key" / "sk-" / "Bearer" —— 应该只在文档示例里出现
-□ 包内没有你的内网 IP
-     搜 "192.168" —— 应该 0 命中（网段常量除外，如 192.168.0.0）
-□ 包内没有你的本机路径
-     搜 "E:\" / "C:\Users" —— 应该 0 命中
-□ 包内没有大文件
-     find . -size +50M —— 应该 0 命中（GitHub 单文件硬限 100MB）
-□ 试一遍 INSTALL.md（在干净环境里能否走通）
-     ★ 最可靠的方式：把上游重新 clone 一份，照 INSTALL 做一遍
+□ 包内没有 API Key            搜 "api_key" / "sk-" / "Bearer"（应只在文档示例里）
+□ 包内没有内网 IP             搜 "192.168"（应只有 192.168.4.1 这个 SoftAP 默认地址）
+□ 包内没有本机路径            搜 "E:\" / "C:\Users"（0 命中）
+□ 包内没有大文件              find . -size +50M（0 命中；GitHub 单文件硬限 100MB）
+□ 试一遍 INSTALL.md            ★ 最可靠：重新 clone 一份上游，照 INSTALL 走一遍
+□ 跑一遍包校验                python3 tools/verify-opensource.py（应全绿）
 ```
 
-### 本仓库的体积构成
+### 体积构成
 
+```text
+代码 + 文档 ≈ 2~3 MB          ← 可直接 push
+不含：微调权重（单个 148MB）、参考音频、Fairy GIF
+      ⇒ 版权原因 + GitHub 限制，用法见 voice-package/README.md 与 fairy-assets/README.md
 ```
-代码 + 文档 ≈ 2~3 MB      ← 可直接 push
-不含：微调权重（148MB）、参考音频 —— 版权原因 + GitHub 限制
-     用法见 voice-package/README.md（自己准备或用零样本）
-```
 
-### 如果你确实要带上权重
+### 确实要带上权重时
 
-```
-甲 Git LFS
-   git lfs track "*.ckpt" "*.pth"
-   免费额度：1 GB 存储 / 1 GB 月流量
-   ⚠️ 别人 clone 会拉 229 MB，且需要装 lfs
-
-乙 Releases（推荐）
-   仓库只放代码 + 文档
-   权重打包 zip 传到 Releases（单文件限 2 GB）
-   别人从 Releases 下载 ⇒ 不占 git 配额
-
-⚠️ 无论哪种，都请先确认音色版权（见 CREDITS.md）
+```text
+甲 Git LFS        git lfs track "*.ckpt" "*.pth"（免费 1GB 存储/1GB 月流量；别人 clone 要装 lfs）
+乙 Releases（推荐）仓库只放代码文档，权重 zip 传 Releases（单文件限 2GB），不占 git 配额
+⚠️ 无论哪种，先确认音色版权（见 CREDITS.md）
 ```

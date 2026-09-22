@@ -24,8 +24,13 @@
 # ★ 例外：代码里内嵌的 LVGL 小图标（是 C 数组，不是美术作品，必须入库）
 !firmware/**/assets/*.c
 # 表情包目录（使用者自己往里放 GIF —— 那是本地文件）
-fairy-assets/
-**/fairy-assets/
+# ★ 注意：必须写「目录/*」而不是「目录/」—— 后者会把目录本身排除掉，
+#   导致下面的 !README.md 白名单失效（git 不允许重新纳入被排除目录里的文件）
+fairy-assets/*
+**/fairy-assets/*
+# 但目录说明要进仓库（否则 clone 下来看不到这个目录）
+!fairy-assets/README.md
+!**/fairy-assets/README.md
 
 # ── 大文件（GitHub 单文件硬限 100MB；且音色版权属原声者）──────
 # 微调权重：自己训练或用零样本（见 voice-package/README.md）
