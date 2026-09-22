@@ -14,7 +14,11 @@
 软件（都要自己装）
   · 固件编译环境：ESP-IDF（上游要求 v5.4+；★ 本项目在 v6.1 上实测通过）
   · 服务器：Python 3.10+（建议 3.12）
-  · 一个终端：Windows 用 PowerShell / cmd，Linux / macOS 用自带终端
+  · 一把趁手的终端：Windows 用 PowerShell / cmd，Linux / macOS 用自带的终端
+    ★ **但注意**：本文档第 1.2 节起的命令是 **bash 写法**（`cp -r` / `mkdir -p` /
+      `grep` / `diff`）。Windows 用户请用 **Git Bash** 或 **WSL** 跑这些命令；
+      不想装的话，就用第 1.2 节的一键脚本（`python tools/apply_to_upstream.py`）
+      —— 它是 Python，Windows 直接能跑。
 
 网络（★ 最容易被低估的一条）
   · 编译固件要联网：拉上游代码 + 自动下载组件（managed_components/）
@@ -53,6 +57,11 @@
      配好 data/.config.yaml（LLM / TTS / auth_key，见第 2 节）。
      ⇒ 做完你就有了【服务器地址】，后面每一步都要用它。
 
+     ★ 注意：**服务器本体 ≠ 有声音**。TTS 若用 GPT-SoVITS，你还得先有
+       GPT-SoVITS 本体 + 底模 + 参考音频（**几 GB 级**，且要单独起服务）。
+       只搭服务器本体的话，设备能连上、能对话，但**说出来的可能没声音/是默认音**。
+       ⇒ 见 voice-package/README.md；不想折腾就用云端的 TTS（阿里/火山等）。
+
      ★ 也可以租一台能跑 TTS 的云服务器：
        好处是本地机器不用常开，出门也能用。
 
@@ -63,10 +72,17 @@
      ⇒ 这一步与 ① 没有依赖关系，可以并行。
      ⇒ 目的只是【先验证硬件 + 网络】，把这两个变量排除掉。
      ⇒ 不验也行，但硬件若有问题，后面排查会绕远路。
+     ★ 官方固件从哪来：M5Stack 官方渠道的 StackChan 出厂固件，
+       或者用你自己【刷机前备份的那份】factory-backup.bin（见第 5 节）。
+       刷机方法与本项目固件完全相同（网页烧录器 / esptool，见第 5 节）。
 
 ③ 把自建服务器地址写进固件
      main/boards/m5stack/core-s3/config.json → CONFIG_OTA_URL
      （见 1.5 节 ★ 必读）
+     ⚠️ **注意**：这个键**只有 `scripts/build.py` 这条编译入口会读** ——
+        用 `idf.py build` 的话它不会进固件（详见 1.5 的「方式 A」）。
+     ★ 更省事的做法：根本不用改 config.json，直接用 1.5 的
+        「设备配网页」填地址（免编译、不用命令行）。
 
 ④ 编译 + 刷机
      ⇒ 设备开机直接连上你的服务器，Fairy 皮肤 + 你的音色跑起来。
@@ -135,8 +151,10 @@ cd /path/to/opensource
 cp -r firmware/board-core-s3/* \
       xiaozhi-esp32/main/boards/m5stack/core-s3/
 
-# ② 公共 I2C 设备层（★ 上游没有这个文件，是本项目新增的）
-#    没有它 ⇒ 'TryReadRegs' was not declared in this scope
+# ② 公共 I2C 设备层（★ 上游【已有】这两个文件，本项目是在它基础上小改）
+#    本项目加的：TryReadRegs / TryReadReg ——「读失败不 abort」的读法
+#    （上游的 ReadRegs 一失败就 ESP_ERROR_CHECK ⇒ I2C 偶发超时会直接把设备搞崩）
+#    少了它 ⇒ 'TryReadRegs' was not declared in this scope
 mkdir -p xiaozhi-esp32/main/boards/common
 cp firmware/board-common/i2c_device.* \
    xiaozhi-esp32/main/boards/common/
@@ -216,7 +234,8 @@ git diff --stat                     # 看改动量
 
 | 类型 | 例子 | 覆盖策略 |
 |---|---|---|
-| **本项目新增**（上游没有） | `board-common/i2c_device.*`、`PY32IOExpander_Class.*`、`components/*` | ✅ 直接放，不会冲突 |
+| **本项目新增**（上游没有） | `PY32IOExpander_Class.*`、`components/*` | ✅ 直接放，不会冲突 |
+| **本项目新增（在别处）** | `board-common/i2c_device.*` —— ★ **上游其实已有**这两个文件，本项目只是加了 `TryReadRegs`/`TryReadReg` | ⚠️ 属「小改」，建议 diff 后合并 |
 | **本项目大改**（基本重写） | `m5stack_core_s3.cc`（12KB → 54KB） | ⚠️ 覆盖后上游更新难合并，建议以本项目为基准 |
 | **本项目小改**（少量 patch） | `ota.cc`、`lcd_display.{cc,h}` | ⚠️ **优先 diff 后手工合并**，别盲覆盖 |
 
@@ -239,7 +258,14 @@ idf.py menuconfig
 #   进入：Xiaozhi Assistant → Board Type → M5Stack CoreS3
 #   保存退出
 
-# 方式 B：直接写进 sdkconfig（脚本/CI 用）
+# 方式 B：脚本书写（★ 推荐写进 sdkconfig.defaults，能扛住 set-target）
+echo "CONFIG_BOARD_TYPE_M5STACK_CORE_S3=y" >> sdkconfig.defaults
+idf.py set-target esp32s3      # 会读 defaults 生成 sdkconfig
+idf.py reconfigure
+
+# 方式 B-2：也可以直接写 sdkconfig
+#   ⛔ 但必须在 idf.py set-target 【之后】做 —— 顺序反了（先 1.3 再 1.6）
+#      会被 set-target 重建 sdkconfig 清掉：编译照样成功、板卡却没选上
 echo "CONFIG_BOARD_TYPE_M5STACK_CORE_S3=y" >> sdkconfig
 idf.py reconfigure
 ```
@@ -361,12 +387,33 @@ if (url.empty()) {
 
 ⇒ 刷完开机就直接连你的服务器，**不需要任何额外操作**。
 
-> ⚠️ 改了 `config.json` 必须**重新 configure + 重新编译**才生效。
-> 验证配置真编进去了（Windows）：
+> ⛔ **★★ 这条有个大坑（必须知道）**：`config.json` 的 `sdkconfig_append`
+> **只有上游的 `scripts/build.py` 这条编译入口会读**。
+> 如果你按本文档 1.6 用 `idf.py build` 编译 —— 这一行**不会进固件**，
+> 设备照样去连官方服务器，而 4 节的排查会把你带进死循环
+> （config.json 明明写着地址，`findstr` 却搜不到）。
+>
+> 所以方式 A 有**两种正确做法**，任选：
+>
+> ```text
+> ① 用上游推荐的编译入口（它会把 sdkconfig_append 合并进构建配置）：
+>      python scripts/build.py m5stack/core-s3
+>    ⛔ 不要再用 idf.py set-target / build（两个入口别混用）
+>
+> ② 继续用 idf.py：把地址写进 sdkconfig.defaults，而不是 config.json：
+>      echo 'CONFIG_OTA_URL="http://<你的服务器IP>:8003/xiaozhi/ota/"' >> sdkconfig.defaults
+>      idf.py set-target esp32s3 && idf.py reconfigure && idf.py build
+> ```
+>
+> ⚠️ 无论哪种：改完必须**重新 configure + 重新编译**才生效。
+> 验证地址真编进去了（Windows）：
 > ```powershell
 > findstr /C:"<你的IP>" build\merged-binary.bin
 > ```
-> 搜不到 ⇒ 配置没生效，回去检查。
+> 搜不到 ⇒ 配置没生效，回去检查（最常见就是上面那个坑）。
+>
+> ★ 其实**更省事的是方式 B**（配网页填地址，一条命令都不用改）——
+> 只有「给朋友刷、想让他开机即连」时才值得折腾方式 A。
 
 #### 方式 B（★ 免编译首选）：在设备配网页里填地址
 

@@ -323,6 +323,11 @@ enum class Skin {
 | **要不要转 C 数组** | ❌ **不用** | 直接放 `.gif`/`.png`，编译脚本会打进 `assets.bin` |
 | **转换脚本** | 无（自动） | `scripts/build_default_assets.py` 在 `idf.py build` 时自动执行 |
 
+> ★ **别和几何脸搞混（两套皮肤各认各的）**：
+> · **几何脸**（官方皮肤）只认 **6 种**情绪：`neutral / happy / angry / sad / doubt / sleepy`
+> · **Fairy GIF 表情包**认上面这 **23 种**情绪名（靠别名表映射到 2 个 GIF）
+> ⇒ 同一个情绪词，在两套皮肤下的表现不一定都有 —— 这是设计如此，不是 bug。
+
 **`_emote_aliases.json` 的格式（本项目实际内容）：**
 
 ```json
