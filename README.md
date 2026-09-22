@@ -39,12 +39,18 @@
 
 ## 两条路线，选一条走
 
-### 路线 A：不想编译，直接刷（推荐先试这条）
+### 路线 A：不想编译，直接刷
 
-1. 到 [Releases](https://github.com/Michae1o/fairy-stackchan/releases) 下载 `fairy-stackchan-universal.bin`
-2. 按 [`firmware-bin/README.md`](firmware-bin/README.md) 刷进设备（三种方法，含浏览器网页烧录）
-3. 按 [`server/README.md`](server/README.md) 把服务器跑起来
-4. 设备配网页「高级选项」里填你的服务器地址
+> ★★ **前提：你先得有一台能跑的服务器。**
+> 「免编译」省掉的只是**编译固件**这一步，**不等于不用服务器** ——
+> 设备刷完要有东西可连，否则它只会连官方服务器（没有你的人设/音色/控制台）。
+> ⇒ 服务器怎么起见 [`INSTALL.md`](INSTALL.md) §1（**先做这一线**）。
+
+1. 按 [`INSTALL.md`](INSTALL.md) §1 把**服务器**跑起来并验通
+   （判据：`/admin` 返回 200 + `tools/test_server_e2e.py` 四个 ✅）
+2. 到 [Releases](https://github.com/Michae1o/fairy-stackchan/releases) 下载 `fairy-stackchan-universal.bin`
+3. 按 [`firmware-bin/README.md`](firmware-bin/README.md) 刷进设备（三种方法，含浏览器网页烧录）
+4. 设备配网页「高级选项」里填你的服务器地址 ⇒ 串口出现 `WS: Connecting to ws://…`
 
 > ⚠️ 这个预编译固件里**内嵌了 2 个作者自绘的表情 GIF**（约 2MB），
 > 只为你上手能看到效果，个人非商业使用；详见 [`CREDITS.md`](CREDITS.md)。

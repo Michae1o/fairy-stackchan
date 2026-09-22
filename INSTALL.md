@@ -64,8 +64,9 @@ curl -L -o xiaozhi-esp32.tar.gz https://codeload.github.com/78/xiaozhi-esp32/tar
 
 ### 0.6 两条捷径（不做也行）
 
-- 只想看效果、不想编译 ⇒ 直接刷 Release 固件，见 [`firmware-bin/README.md`](firmware-bin/README.md)
 - 不想自己画表情 ⇒ 用 `tools/make_face.py` 一条命令生成（§2.3）
+- 不想编译固件 ⇒ 直接刷 Release 里的预编译固件，见 [`firmware-bin/README.md`](firmware-bin/README.md)
+  ⚠️ 但**服务器还是要先有**（§1）—— 「免编译」省掉的只是编译，不是服务器
 
 ---
 
