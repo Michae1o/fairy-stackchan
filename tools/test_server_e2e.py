@@ -10,7 +10,7 @@
 
 用法：
     python3 tools/test_server_e2e.py --audio ref.wav
-    python3 tools/test_server_e2e.py --audio ref.wav --url ws://192.168.1.10:8000/xiaozhi/v1/
+    python3 tools/test_server_e2e.py --audio ref.wav --url ws://<服务器IP>:8000/xiaozhi/v1/
 
     # 没有音频文件？随便一段 5~10 秒人声即可，先转成 16k 单声道：
     ffmpeg -i any.wav -ac 1 -ar 16000 ref.wav
