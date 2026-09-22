@@ -69,6 +69,60 @@ curl -L -o xiaozhi-esp32.tar.gz https://codeload.github.com/78/xiaozhi-esp32/tar
 
 ## §1 固件
 
+### 1.0 ★ 推荐工序（全程照着走，别跳）
+
+```text
+⓪ 先备份出厂固件 ★ 别跳过
+     出厂固件一旦被覆盖就回不去了。一条命令（3~5 分钟）：
+       python -m esptool --chip esp32s3 -p <串口> read-flash 0 0x1000000 factory-backup.bin
+     判据：得到一个 16,777,216 字节的文件；存好（别只放桌面）
+     ⚠️ 这条命令会先复位设备再读 —— 设备正在跑的东西会被打断
+
+① 装 ESP-IDF v6.1（§1.4）⇒ 新开终端 `idf.py --version` 能出版本号
+② 拉仓库（§1.1）：本包 + 上游固件（服务器稍后，§2.1）
+③ 拷一份【独立副本】用来改/编（§1.4 铁律 1）—— 别在你长期保留的那份源码上直接编
+④ 打固件改动：`python3 tools/apply_to_upstream.py <上游副本>`（§1.2）
+⑤ 生成素材：`python3 tools/make_face.py --out fairy-assets`
+     ⇒ `python3 tools/verify_artifact.py --gif-dir fairy-assets`（§1.3）
+⑥ 编译：set-target → build → merge-bin（§1.4）
+     判据必须含 **build/xiaozhi.bin 存在**
+⑦ 验产物：`python3 tools/verify_artifact.py build/merged-binary.bin`（§1.4）
+⑧ 烧录（§1.5）⇒ 串口日志出现 `WS: Connecting to ws://…`（§1.6）
+⑨ 起服务器（§2）：`python app.py` ⇒ `/admin` 返回 200
+⑩ 让设备指到你的服务器（§2.5）：设备配网页 →「高级选项」→ 自定义 OTA 地址
+⑪ 攒改动再编：小改动别急着编（首次 15~25 分钟，之后 2~4 分钟），一次编完
+```
+
+**为什么是这个顺序**
+
+- **素材必须在编译前放好** —— 素材是在编译时打包进 `assets` 分区的；
+  编完再换素材就得**重编一次**（或者只重烧 assets，见 §1.5 备注）。
+- **先烧固件、后起服务器也行** —— 两者互不影响；先烧可以先确认硬件和屏幕是好的。
+- **先备份** —— 这是唯一不可逆的一步。
+
+**★ 五条铁律（踩出来的，照做能省几小时）**
+
+```text
+1. 别在要长期保留的源码树上直接编
+   编译会生成/改动 sdkconfig、build/、managed_components/
+   ⇒ 拷一份出来编（例：cp -r xiaozhi-esp32 xiaozhi-esp32-build）
+
+2. 先拷 sdkconfig.defaults*，再删 sdkconfig 让它重新生成
+   顺序反了 ⇒ 你的预置项不生效（典型症状：app partition is too small）
+
+3. 用 `idf.py set-target esp32s3` + 手工写 CONFIG_BOARD_TYPE_M5STACK_CORE_S3=y
+   ⛔ 别直接用上游的 scripts/build.py：它要从板卡 config.json 里读 board_type，
+      脱敏过的 config 里没有那一项 ⇒ 会报 board_type not found
+
+4. 判据必须包含【产物文件存在】（build/xiaozhi.bin）
+   只看「✅ 编译完成」会被「提示成功但没产物」骗过去
+
+5. 编不动先看僵尸进程：`idf.py` / `ninja` / `cc1plus` 卡着互抢 sdkconfig
+   ⇒ 症状是「停在配置阶段、进程 0、无 error」
+   ⇒ 处理：先清进程（pkill -9 -f idf.py / ninja / cc1plus），再从 sdkconfig.old 恢复
+   ⇒ 记住：**进程 0 + 无 error = 中断，不是失败**，别急着重装工具链
+```
+
 ### 1.1 拿到三个仓库
 
 ```bash
@@ -143,16 +197,34 @@ python3 tools/apply_to_upstream.py <上游目录> --gif-dir fairy-assets
 
 ### 1.4 编译
 
+#### 1.4.0 先把 ESP-IDF 装好（Windows）
+
+1. 到乐鑫官方文档下 **ESP-IDF v6.1 的 Windows 安装器**（或离线安装包），一路下一步；
+   中途会让你选组件，**默认全选就行**（要 Python 与工具链）
+2. 装完开始菜单里会出现 **「ESP-IDF 6.1 PowerShell」** 之类的快捷方式 —— **用这个开终端**
+   （它帮你设好了 PATH；直接开 PowerShell 跑 `idf.py` 会 `command not found`）
+3. 判据：在这个终端里
+
+```powershell
+idf.py --version          # 出版本号（v6.1）即 OK
+```
+
+> Linux / macOS：`git clone --recursive ESP-IDF` 后跑 `./install.sh esp32s3`，
+> 之后每次 `source ./export.sh`（或写进 `~/.bashrc`）。
+
+#### 1.4.1 编译
+
 ```bash
-cd <上游 xiaozhi-esp32 目录>
+cd <上游副本 xiaozhi-esp32 目录>
 idf.py set-target esp32s3      # 判据：Target set to 'esp32s3'
 idf.py build                   # 判据：Project build complete.
                                #       且 build/xiaozhi.bin 存在
 ```
 
-- **`set-target` 会重新生成 `sdkconfig`** ⇒ 这就是为什么改动要写进 `sdkconfig.defaults*`
-- 首次编译会联网下载托管组件（`managed_components/`），要等一会儿
-- 编译完可以合成整机固件（含引导/分区表，方便整片刷）：
+- **首次编译 15~25 分钟**：会联网下载托管组件（`managed_components/`）并从零编 LVGL 等
+  —— 之后增量编译 2~4 分钟
+- **`set-target` 会重新生成 `sdkconfig`** ⇒ 这就是为什么改动要写进 `sdkconfig.defaults*`（§1.2）
+- 编译完合成整机固件（含引导 + 分区表，方便整片刷）：
 
 ```bash
 idf.py merge-bin               # ⇒ build/merged-binary.bin
@@ -165,22 +237,78 @@ idf.py merge-bin               # ⇒ build/merged-binary.bin
 **验产物**（别只看「编译成功」）：
 
 ```bash
-python3 tools/verify_artifact.py <上游>/build/merged-binary.bin
+python3 tools/verify_artifact.py <上游副本>/build/merged-binary.bin
 ```
 
 它会告出：双唤醒词在不在、两个 MCP 工具在不在、有没有泄漏作者私货 IP、
 内嵌了几张 GIF（0 就是素材没打进去）。
 
+**编译卡住了先看这三样**
+
+| 现象 | 先查什么 |
+|---|---|
+| 停在配置阶段不动、进程数 0、没有 error | 僵尸进程互抢（见 §1.0 铁律 5） |
+| `app partition is too small` | `sdkconfig` 重建顺序错了（§1.0 铁律 2） |
+| 卡在 `Downloading…` | 网络拉不到托管组件 ⇒ 挂代理重试 |
+
 ### 1.5 烧录
+
+**先找到串口**（这一步别猜）：
+
+```text
+Windows：设备管理器 → 端口(COM 和 LPT) ⇒ 形如 「USB 串行设备 (COM5)」
+         或命令行：python -m serial.tools.list_ports
+Linux/macOS：ls /dev/ttyACM* /dev/cu.usbmodem*
+```
+
+**方式一：`idf.py`（最省事）**
 
 ```bash
 idf.py -p <串口> flash         # 判据：Hash of data verified.
 idf.py -p <串口> monitor       # 看日志（Ctrl+] 退出）
 ```
 
-- 串口在 Windows 是 `COM3` 这种，在 Linux/macOS 是 `/dev/ttyACM0`、`/dev/cu.usbmodem*`
-- **Linux 报「权限不足」** ⇒ 把用户加进 `dialout` 组：`sudo usermod -aG dialout $USER`（要重新登录）
-- 不想用 `idf.py`，或想整片刷预编译固件 ⇒ 见 [`firmware-bin/README.md`](firmware-bin/README.md)
+**方式二：`esptool` 直接烧（★ 最稳，本项目自己就用这条）**
+
+```bash
+# 整机固件（合并固件）从 0x0 开始烧
+python -m esptool --chip esp32s3 -p <串口> -b 460800 \
+    --before default-reset --after hard-reset \
+    write-flash --flash-mode dio --flash-size 16MB --flash-freq 80m \
+    0x0 build/merged-binary.bin
+```
+
+> 三种烧录方式（含**浏览器免安装**的网页烧录器）与预编译固件 ⇒ [`firmware-bin/README.md`](firmware-bin/README.md)
+
+**烧不进去时按顺序试**
+
+```text
+① 换一根【数据】线、换 USB 口（最常见的真因）
+② 关掉占用串口的程序（monitor、串口助手、另一个 idf.py）
+③ 波特率降到 115200 再试
+④ 先整片擦除再烧：python -m esptool --chip esp32s3 -p <串口> erase-flash
+⑤ 手动进下载模式：按住 BOOT(或 GPIO0) → 点一下 RST → 松开 BOOT，再烧
+⑥ Linux 报权限不足 ⇒ sudo usermod -aG dialout $USER（重新登录生效）
+```
+
+**★ 只换表情素材时不用整片重烧**（素材在 `assets` 分区，独立的）：
+
+```bash
+python -m esptool --chip esp32s3 -p <串口> write-flash \
+    <assets 分区偏移> build/generated_assets.bin
+```
+
+> 偏移量看分区表（本项目用 `partitions/v2/16m.csv`，`assets` 那行的 offset 列）。
+> 拿不准就整片重烧 `0x0`，慢一点但不会错。
+
+**备份与回滚**（§1.0 ⓪ 已经做过备份的话，这里是恢复）：
+
+```bash
+# 读出厂固件（★ 只有这一步不可逆，务必先做）
+python -m esptool --chip esp32s3 -p <串口> read-flash 0 0x1000000 factory-backup.bin
+# 想回到出厂：把备份整片写回去
+python -m esptool --chip esp32s3 -p <串口> -b 460800 write-flash 0x0 factory-backup.bin
+```
 
 ### 1.6 设备端确认（这一步过了才算固件 OK）
 

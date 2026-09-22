@@ -110,4 +110,7 @@ python3 tools/apply_to_server.py   <上游 xiaozhi-server>   # ③ 把服务器�
 
 ## 许可
 
-代码 MIT（见 [`LICENSE`](LICENSE)）；形象、音色、素材的版权与出处见 [`CREDITS.md`](CREDITS.md)。
+代码 MIT（见 [`LICENSE`](LICENSE)）；
+**本包用到的第三方代码与各自许可**（含 Fairy-DSH 的 Apache-2.0 署名与许可全文）
+见 [`THIRD-PARTY-LICENSES.md`](THIRD-PARTY-LICENSES.md)；
+形象、音色、素材的版权与出处见 [`CREDITS.md`](CREDITS.md)。

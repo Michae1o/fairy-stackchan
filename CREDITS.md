@@ -207,15 +207,19 @@ Release 里的 fairy-stackchan-universal.bin **内嵌了 2 个表情动画 GIF**
 
 **参考项目：[Chengzhibense/Fairy-DSH](https://github.com/Chengzhibense/Fairy-DSH)（作者：B 站「橙汁本色」）**
 
-> ★ **先说明白两件事：**
+> ★ **先说明白两件事（★ 2026-09-22 更正过）：**
 >
-> ① **本项目【没有使用】Fairy-DSH 的代码。**
->    我们没有引入它的任何源文件、没有复制它的实现，因此**不受它的许可条款约束**。
->    这一节只是**推荐这个思路**给读者。
+> ① **本项目【用了】Fairy-DSH 的代码** —— 用在**网页控制台前端**
+>    （`server/patches/core/api/admin_page.html`：配色变量、吉祥物 SVG/CSS 动画、
+>    状态切换与抖动的时序；那些位置也都标着「抄自 Fairy-DSH」）。
+>    它是 **Apache-2.0**，我们改动了前缀（`dsh-fairy-` → `fv7-`）并去掉与官方宿主耦合的部分。
+>    ⇒ **署名、改动声明、许可全文**都在
+>    [`THIRD-PARTY-LICENSES.md`](THIRD-PARTY-LICENSES.md)（全文另存 `licenses/Apache-2.0.txt`），
+>    二次分发时请一起带上。
+>    固件侧（ESP-IDF / C++ / LVGL）**没有**用它 —— 技术栈不同，搬不过去。
 >
-> ② **Fairy-DSH 是一个 DeepSeek Harness 项目**，与本项目（ESP-IDF / C++ / LVGL）
->    技术栈完全不同，**不能直接搬代码**。
->    我们只是借鉴了它**「用代码生成图形、而不是分发图片文件」**这个做法。
+> ② 它的 NOTICE 自己声明：**游戏文本与官方素材不在它的 Apache-2.0 授权范围内**
+>    （那部分版权属米哈游）。所以「用了它的代码」≠「可以分发 Fairy 素材」。
 
 上面第三节说了 Fairy 形象版权属于米哈游。那个项目给了一个**很干净的解法**：
 
@@ -248,8 +252,9 @@ Release 里的 fairy-stackchan-universal.bin **内嵌了 2 个表情动画 GIF**
 > ⚠️ 注意：即使是"用代码画"，如果刻意复刻了受版权保护的具体角色形象，
 > 仍有风险。建议画成"风格相似"而非"精确复刻"。
 
-> ⚠️ **若你之后确实引入了 Fairy-DSH 的代码**（目前没有），
-> 请按其仓库的 LICENSE 声明处理，并在本文件补上对应条目。
+> ⚠️ **若你之后还要引入更多 Fairy-DSH 的代码**，
+> 请照 [`THIRD-PARTY-LICENSES.md`](THIRD-PARTY-LICENSES.md) 第 1 节的格式补上
+> 「用了什么 / 改了什么 / 保留它的 NOTICE」，并保留 `licenses/Apache-2.0.txt`。
 
 > ★ **本节只讲「怎么画、为什么这么画不踩版权」**。
 > 画完之后**怎么变成设备能加载的文件**（格式 / 尺寸 / 循环 / 体积 / 放哪），
