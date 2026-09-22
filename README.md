@@ -1,5 +1,7 @@
 # Fairy StackChan
 
+**中文** ｜ [English](README.en.md)
+
 把 M5Stack **StackChan**（CoreS3 桌面机器人）改成《绝区零》的 **Fairy**：
 全屏表情 + DeepSeek 对话 + GPT‑SoVITS 零样本音色 + 网页控制台 + 摸头/甩晕/转头等互动。
 
