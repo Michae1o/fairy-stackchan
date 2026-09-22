@@ -34,8 +34,12 @@
 
 ## 二、音频要求（决定了克隆质量）
 
-> ★ **放哪里？** 项目里有个约定目录：**`<项目根>/fairy-ref/`**
-> （即与 `main/` 同级）。
+> ★ **放哪里？** 服务器代码算出来的目录是 **`<服务器 clone 的上一级>/fairy-ref/`**。
+> 例：服务器 clone 在 `/opt/xiaozhi-esp32-server` ⇒ 音频放在 **`/opt/fairy-ref/`**。
+>
+> ⛔ **不是**「与 `main/` 同级」—— 代码从 `core/api/` 上溯 3 层（得到
+> `<clone>/main/xiaozhi-server`）**再上一级**，所以比 clone 根目录还高一层。
+> 详见 `server/patches/admin_handler.py` 的 `PROJECT_ROOT` 计算。
 > 控制台的「音色」页会**从这个目录列出**可选的参考音频。
 > ⇒ 放在别处也能用（手填绝对路径即可），但**放这里才能在控制台里下拉选择**。
 

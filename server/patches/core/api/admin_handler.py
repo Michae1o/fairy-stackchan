@@ -273,6 +273,9 @@ class AdminHandler:
             },
             "vllm": {
                 "model_name": vllm.get("model_name", ""),
+                "base_url": vllm.get("base_url", ""),
+                "temperature": vllm.get("temperature", 0.3),
+                "max_tokens": vllm.get("max_tokens", 300),
                 "api_key_masked": _mask(vllm.get("api_key", "")),
                 "api_key_set": bool(vllm.get("api_key")),
             },
@@ -335,16 +338,33 @@ class AdminHandler:
                     node["api_key"] = ak
                     changed.append("LLM.api_key")
 
-            # VLLM 的 key 同步（设备视觉用同一 key）
-            vak = (body.get("vllm") or {}).get("api_key")
-            if vak and "•" not in vak:
+            # ★ VLLM（视觉模型）：与 LLM 一样支持【改模型名 / Base URL / 参数】
+            #   原来是「只有填了 key 才顺带 setdefault」⇒ 换不了模型
+            vbody = body.get("vllm") or {}
+            if vbody:
                 vnode = (cfg.setdefault("VLLM", {})
                             .setdefault("DeepSeekVLLM", {}))
-                if vnode.get("api_key") != vak:
-                    vnode["api_key"] = vak
-                    changed.append("VLLM.api_key")
-                vnode.setdefault("base_url", node.get("base_url", ""))
-                vnode.setdefault("model_name", node.get("model_name", ""))
+                for k in ("model_name", "base_url"):
+                    v = (vbody.get(k) or "").strip()
+                    if v and vnode.get(k) != v:
+                        vnode[k] = v
+                        changed.append("VLLM.%s" % k)
+                for k, cv in (("temperature", float),
+                              ("max_tokens", int)):
+                    raw = str(vbody.get(k) or "").strip()
+                    if raw:
+                        try:
+                            nv = cv(float(raw))
+                        except (ValueError, TypeError):
+                            continue
+                        if vnode.get(k) != nv:
+                            vnode[k] = nv
+                            changed.append("VLLM.%s" % k)
+                vak = (vbody.get("api_key") or "").strip()
+                if vak and "•" not in vak:
+                    if vnode.get("api_key") != vak:
+                        vnode["api_key"] = vak
+                        changed.append("VLLM.api_key")
 
             # 人设
             pr = body.get("prompt")

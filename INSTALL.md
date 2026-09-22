@@ -141,8 +141,9 @@ mkdir -p xiaozhi-esp32/main/boards/common
 cp firmware/board-common/i2c_device.* \
    xiaozhi-esp32/main/boards/common/
 
-# ③ 本地组件（★ 上游没有 components/ 目录，是本项目新增的）
+# ③ 本地组件（★ 上游【没有】components/ 目录，必须自己建）
 #    没有它 ⇒ fatal error: smooth_ui_toolkit.hpp: No such file
+mkdir -p xiaozhi-esp32/components     # ★ 不建这个目录，下面的 cp 会报 "not a directory"
 cp -r firmware/components/* xiaozhi-esp32/components/
 
 # ④ ota.cc（固件版本检查 + 本项目加的"记住自建地址"）
@@ -675,13 +676,78 @@ git clone https://github.com/xinnan-tech/xiaozhi-esp32-server.git
 ### 2.2 把本项目的改动覆盖到上游
 
 > **前提**：同 1.2 —— 先 `cd` 到【本项目包】的根目录（`server/patches/` 就在里面）。
+>
+> ★ **别手抄**：本仓库自带脚本，一条命令做完 2.2 + 下面那步「接线」+ 自检：
+> `python3 tools/apply_to_server.py /path/to/xiaozhi-esp32-server`
 
 ```bash
-cp server/patches/*.py \
-   xiaozhi-esp32-server/main/xiaozhi-server/core/api/
-cp server/patches/admin_page.html \
-   xiaozhi-esp32-server/main/xiaozhi-server/core/api/
+# ★ server/patches/ 是【镜像目录结构】—— 按同样的相对路径覆盖过去：
+cp -r server/patches/core \
+      xiaozhi-esp32-server/main/xiaozhi-server/
 ```
+
+> 即：`patches/core/api/x.py` → `main/xiaozhi-server/core/api/x.py`；
+> `patches/core/utils/y.py` → `main/xiaozhi-server/core/utils/y.py`……依此类推。
+>
+> **一共 10 个文件**，分两类：
+>
+> ```text
+> 【新增文件】上游没有，直接放进去
+>   core/api/admin_handler.py      控制台后端（皮肤/硬件/重启/配置/状态）
+>   core/api/admin_page.html       电脑版控制台前端（/admin）
+>   core/api/admin_mobile.html     手机版控制台前端（/m）
+>   core/api/device_registry.py    在线设备注册表
+>   core/api/chat_llm.py           控制台「网页对话」用的 LLM 调用
+>   core/utils/chat_log.py         对话记录 + 状态灯（thinking/speaking/idle）
+>
+> 【覆盖上游同名文件】★ 上游更新这几个文件时，请按 diff 手工合并
+>   （这几处的改动都是「只加不删」，合并起来不难）
+>   core/api/ota_handler.py            加了「设备上报皮肤时自动对齐服务器配置」
+>   core/utils/dialogue.py             加了「真实对话落进控制台记录」（过滤示例/系统/tool）
+>   core/handle/sendAudioHandle.py     加了「说话状态」上报
+>   core/providers/tts/gpt_sovits_v2.py 加了 Fairy 音色后处理（默认关闭）
+> ```
+>
+> ⛔ 漏掉 `admin_mobile.html` ⇒ 手机版 `/m` 404。
+
+### 2.2b ★★ 必做：把控制台「接上线」（上游文件里加 6 行）
+
+**光把文件拷进去是不够的** —— 上游服务器是**显式注册**模式，
+`admin_handler.py` / `device_registry.py` 只是两个「模块」，
+必须有东西**调用它们**，否则：
+
+```text
+不改 http_server.py  ⇒ /admin 打不开（404），整个控制台用不了
+不改 connection.py   ⇒ 控制台看不到设备在线；皮肤切换、RGB/舵机下发、
+                        转头/跟随全部失效（因为拿不到设备连接）
+```
+
+**要改两个上游文件，共 3 处：**
+
+```text
+① main/xiaozhi-server/core/http_server.py
+   a) import 区，VisionHandler 那行后面加：
+        from core.api.admin_handler import AdminHandler
+   b) __init__ 里，self.vision_handler = ... 那行后面加：
+        self.admin_handler = AdminHandler(config, self.logger)   （用 try/except 包住）
+   c) start() 里，「# 运行服务」那行前面加：
+        if self.admin_handler is not None:
+            self.admin_handler.register(app)
+
+② main/xiaozhi-server/core/connection.py
+   a) import 区（from collections import deque 后面）加：
+        from core.api import device_registry
+   b) async def handle_connection(...) 的**第一行**（在 try: 之前）加：
+        device_registry.register(self)        （同样用 try/except 包住）
+   c) 那个 finally: 块的开头（await self._save_and_close(ws) 之前）加：
+        device_registry.unregister(self)
+```
+
+> ★ 完整代码块见 `server/README.md` 的「接上线」一节，或直接跑
+> `python3 tools/apply_to_server.py <上游服务器目录>`（幂等 + 自动自检）。
+> ⛔ 位置别猜：`http_server.py` 的锚点是 `from core.api.vision_handler import VisionHandler`
+> 与 `# 运行服务`；`connection.py` 的锚点是 `from collections import deque` 与
+> `async def handle_connection`（上游当前结构已核对）。
 
 ### 2.3 配置
 

@@ -1407,9 +1407,19 @@ button.mini:disabled{opacity:.5;cursor:default}
         </div>
         <div class="card">
           <h3>👁️ 视觉模型（VLLM）</h3>
-          <p class="hint">设备「看图说话」用。通常与 LLM 同一个服务。</p>
+          <p class="hint">设备「看图说话」用。可以填与 LLM 不同的服务（例如专门的视觉大模型）。</p>
+          <div class="row">
+            <div><label>模型名<button type="button" class="mini" id="probeBtnV" onclick="probeModels('vllm')" title="从 Base URL 拉取可用模型列表">探测</button></label><input id="vllm_model" placeholder="deepseek-chat"><div id="modelListV" class="model-list"></div></div>
+            <div><label>Base URL</label><input id="vllm_base" placeholder="https://api.deepseek.com"></div>
+          </div>
           <label>API Key <span class="masked" id="vllm_key_masked"></span></label>
           <input id="vllm_key" type="password" placeholder="留空 = 不修改">
+          <div class="row">
+            <div><label>temperature（0~2）</label>
+              <input id="vllm_temp" type="number" step="0.1" min="0" max="2"></div>
+            <div><label>max_tokens（描述上限）</label>
+              <input id="vllm_max" type="number" min="1"></div>
+          </div>
         </div>
       </div>
 
@@ -1431,7 +1441,7 @@ button.mini:disabled{opacity:.5;cursor:default}
           <p class="hint">参考音频决定音色；台词必须与音频内容一致。</p>
 <div class="rnote yes">⚠️ <b>需要重启服务器</b>才会生效。TTS 参考音频/参数在启动时载入。保存后点底部<b>「保存并重启」</b>。</div>
           <label>参考音频路径</label>
-          <input id="tts_ref" placeholder="<仓库根>/fairy-ref/xxx.wav">
+          <input id="tts_ref" placeholder="&lt;你的路径&gt;/fairy-ref/xxx.wav">
           <div class="row">
             <div><label>语言</label>
               <select id="tts_lang">
@@ -1991,6 +2001,11 @@ async function load(){
       d.llm.api_key_set ? '（当前 '+d.llm.api_key_masked+'）' : '（未设置）';
     $('vllm_key_masked').textContent =
       d.vllm.api_key_set ? '（当前 '+d.vllm.api_key_masked+'）' : '（未设置）';
+    // ★ 视觉模型：也从服务器回填（原来是只填 key，换不了模型）
+    $('vllm_model').value = d.vllm.model_name||'';
+    $('vllm_base').value  = d.vllm.base_url||'';
+    if (d.vllm.temperature !== undefined) $('vllm_temp').value = d.vllm.temperature;
+    if (d.vllm.max_tokens  !== undefined) $('vllm_max').value  = d.vllm.max_tokens;
     $('llm_key').value = ''; $('vllm_key').value = '';
     $('prompt').value = d.prompt||''; updLen();
     $('tts_ref').value  = d.tts.ref_audio_path||'';
@@ -2020,7 +2035,11 @@ async function save(andRestart){
     llm:{ model_name:$('llm_model').value.trim(), base_url:$('llm_base').value.trim(),
           temperature:$('llm_temp').value, max_tokens:$('llm_max').value,
           api_key:$('llm_key').value.trim() },
-    vllm:{ api_key:$('vllm_key').value.trim() },
+    vllm:{ model_name:$('vllm_model').value.trim(),
+           base_url:$('vllm_base').value.trim(),
+           temperature:$('vllm_temp').value,
+           max_tokens:$('vllm_max').value,
+           api_key:$('vllm_key').value.trim() },
     prompt:$('prompt').value,
     tts:{ ref_audio_path:$('tts_ref').value.trim(),
           prompt_text:$('tts_text').value.trim(), text_lang:$('tts_lang').value }
@@ -2360,12 +2379,18 @@ function fairyTransitionTo(state) {
    ★ 后端：GET /admin/api/models?base_url=&api_key=
      转发 {base_url}/models，返回 {ok, models:[id...]}
    ★ 仍可手输：选中候选只是填入输入框，别名（如 deepseek-chat）照样能用。 */
-async function probeModels(){
-  const btn = $('probeBtn');
-  const box = $('modelList');
+/* ★ which: 'llm'（默认）| 'vllm' —— 两块的输入框/列表/按钮各自独立 */
+async function probeModels(which){
+  const W = (which === 'vllm')
+    ? {btn:'probeBtnV', box:'modelListV', base:'vllm_base',
+       key:'vllm_key', model:'vllm_model', list:'#modelListV'}
+    : {btn:'probeBtn',  box:'modelList',  base:'llm_base',
+       key:'llm_key',   model:'llm_model', list:'#modelList'};
+  const btn = $(W.btn);
+  const box = $(W.box);
   if (!btn || !box) return;
-  const base = ($('llm_base') && $('llm_base').value.trim()) || '';
-  const key  = ($('llm_key')  && $('llm_key').value.trim())  || '';
+  const base = ($(W.base) && $(W.base).value.trim()) || '';
+  const key  = ($(W.key)  && $(W.key).value.trim())  || '';
   btn.disabled = true;
   const oldTxt = btn.textContent;
   btn.textContent = '探测中…';
@@ -2381,10 +2406,11 @@ async function probeModels(){
       box.innerHTML = '<span class="tip">该网关未返回模型列表</span>';
       return;
     }
-    const cur = ($('llm_model').value || '').trim();
+    const cur = ($(W.model).value || '').trim();
     box.innerHTML = d.models.map(m =>
       '<span class="mi' + (m === cur ? ' cur' : '') +
-      '" onclick="pickModel(\'' + esc(m) + '\')">' + esc(m) + '</span>'
+      '" onclick="pickModel(\'' + esc(m) + '\',\'' + which + '\')">' +
+      esc(m) + '</span>'
     ).join('') +
     '<span class="tip">共 ' + d.count + ' 个（点选填入，也可手输别名）</span>';
   }catch(e){
@@ -2395,13 +2421,15 @@ async function probeModels(){
     btn.textContent = oldTxt;
   }
 }
-function pickModel(name){
-  const el = $('llm_model');
+function pickModel(name, which){
+  const isV = (which === 'vllm');
+  const el = $(isV ? 'vllm_model' : 'llm_model');
   if (!el) return;
   el.value = name;
-  document.querySelectorAll('#modelList .mi').forEach(function(x){
-    x.classList.toggle('cur', x.textContent === name);
-  });
+  document.querySelectorAll((isV ? '#modelListV' : '#modelList') + ' .mi')
+    .forEach(function(x){
+      x.classList.toggle('cur', x.textContent === name);
+    });
   toast('已选择 ' + name, 'ok');
 }
 /* ==== MODEL-PROBE-JS-END ==== */
