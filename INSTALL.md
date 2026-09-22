@@ -309,6 +309,14 @@ python3 tools/apply_to_upstream.py /path/to/xiaozhi-esp32
 list(APPEND SOURCES ${BOARD_SOURCES})
 ```
 
+> **★ 别多列 `drivers/bmi270/BMI270_SensorAPI/*.c`（7 个 Bosch 参考源码）** ——
+> 本版**没用到**它们：`bmi270.cpp` 调用的 `bmi270_init` / `bmi2_*` 符号
+> 来自上游自带的组件 **`espressif/bmi270_sensor`**（**预编译 `.a`**，
+> 见 `managed_components/espressif__bmi270_sensor/<IDF版本>/<芯片>/libbmi270_sensor.a`），
+> 由组件管理器在 build 时自动下载。
+> ⇒ 也就是说：板卡目录里**有源文件但没进清单**，不代表会链接失败
+>   （判断依据是「有没有被引用」，不是「在不在清单里」）。
+
 **② PRIV_REQUIRES 里加 4 个组件**（不做 ⇒ `fatal error: smooth_ui_toolkit.hpp: No such file`）
 
 在 `main/CMakeLists.txt` 的 `idf_component_register(... PRIV_REQUIRES ...)`
@@ -659,6 +667,13 @@ idf.py: command not found
 undefined reference to `XXX'
   ⇒ 99% 是漏了 1.4（没把 CMakeLists.append.txt 贴进 main/CMakeLists.txt）；
      也和 1.3（板卡没选对）有关 ⇒ 两个都回去检查一遍
+
+undefined reference to `bmi270_init' / `bmi2_get_sensor_config' /
+                        `bmi2_sensor_enable' / `bmi2_get_sensor_data'
+  ⇒ ★ 这【不是】清单问题（别去加 BMI270_SensorAPI/*.c，本版没用到它们）
+  ⇒ 真因是【组件没下载成功】：这些符号由 espressif/bmi270_sensor 组件
+     （预编译 .a）提供，组件管理器在 build 时联网下载
+  ⇒ 处理：确认网络/代理 → 删掉 build/ 与 managed_components/ 重新 build
 
 串口打不开 / 一直连不上
   ⇒ 端口被占用：关掉串口监视器 / M5Burner / Arduino / 其他串口工具

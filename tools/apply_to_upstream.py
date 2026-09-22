@@ -45,6 +45,10 @@ if(BOARD_DIR STREQUAL "m5stack/core-s3")
         # ★ 传感器驱动（GLOB 不递归，子目录必须显式列出）
         #   Si12T = 头顶触摸（I2C 0x68）；motion_detector = 摇晃判定
         "boards/m5stack/core-s3/drivers/Si12T/Si12T.cpp"
+        # ★ BMI270 的 API 符号来自上游自带的组件 espressif/bmi270_sensor
+        #   （预编译 .a，组件管理器在 build 时自动下载）
+        #   ⇒ 同目录 BMI270_SensorAPI/ 下的 7 个 .c 是 Bosch 参考源码，
+        #     本版【没用到】，不要加进清单
         "boards/m5stack/core-s3/drivers/bmi270/bmi270.cpp")
     # ★ 官方几何脸（第二套皮肤）
     #   放在 stackchan_avatar/ 子目录，GLOB 不递归 ⇒ 必须显式列出。
