@@ -20,11 +20,12 @@
     ⑨ 建 fairy-assets/：情绪别名表（★ 本仓库【不附带】GIF 素材，请自备）
 
 ★ 幂等：重复执行不会重复插入。
-★ 不动 sdkconfig、不编译（编译见 INSTALL.md 1.6）。
+★ 只写 sdkconfig.defaults*（板卡类型 + 唤醒词）；不生成 sdkconfig、不编译（编译见 INSTALL.md §2.4）。
 ★ 锚点找不到就报错退出 —— 绝不静默跳过，避免「以为改好了」。
 """
 import argparse
 import json
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -183,7 +184,7 @@ def main():
     say("✅ 目标校验通过")
 
     # ── 1~5. 覆盖文件 ─────────────────────────────────────────────
-    say("\n【1/9】覆盖板卡目录 → main/boards/m5stack/core-s3/")
+    say("\n【1/10】覆盖板卡目录 → main/boards/m5stack/core-s3/")
     if not dry:
         for item in sorted((FW / "board-core-s3").iterdir()):
             dst = board / item.name
@@ -193,7 +194,7 @@ def main():
                 shutil.copy2(item, dst)
     say("      ✅ 完成（%d 项）" % len(list((FW / "board-core-s3").iterdir())))
 
-    say("\n【2/9】覆盖公共 I2C 设备层 → main/boards/common/")
+    say("\n【2/10】覆盖公共 I2C 设备层 → main/boards/common/")
     common = tgt / "main" / "boards" / "common"
     if not dry:
         common.mkdir(parents=True, exist_ok=True)
@@ -201,7 +202,7 @@ def main():
             shutil.copy2(f, common / f.name)
     say("      ✅ 完成")
 
-    say("\n【3/9】覆盖本地组件 → components/")
+    say("\n【3/10】覆盖本地组件 → components/")
     comp = tgt / "components"
     if not dry:
         comp.mkdir(parents=True, exist_ok=True)
@@ -210,19 +211,19 @@ def main():
                 shutil.copytree(d, comp / d.name, dirs_exist_ok=True)
     say("      ✅ 完成（%d 个组件）" % len(list((FW / "components").iterdir())))
 
-    say("\n【4/9】覆盖 ota.cc → main/ota.cc")
+    say("\n【4/10】覆盖 ota.cc → main/ota.cc")
     if not dry:
         shutil.copy2(FW / "ota.cc", tgt / "main" / "ota.cc")
     say("      ✅ 完成")
 
-    say("\n【5/9】覆盖显示层 → main/display/")
+    say("\n【5/10】覆盖显示层 → main/display/")
     if not dry:
         for f in (FW / "display").glob("lcd_display.*"):
             shutil.copy2(f, tgt / "main" / "display" / f.name)
     say("      ✅ 完成")
 
     # ── 6. 唤醒词 ─────────────────────────────────────────────────
-    say("\n【6/9】唤醒词：Hi Fairy 写进 sdkconfig.defaults.esp32s3")
+    say("\n【6/10】唤醒词：Hi Fairy 写进 sdkconfig.defaults.esp32s3")
     cfg = tgt / "sdkconfig.defaults.esp32s3"
     if not cfg.is_file():
         die("上游没有 sdkconfig.defaults.esp32s3 ⇒ 请检查上游版本")
@@ -243,7 +244,7 @@ def main():
         return _next_steps()
 
     # ── 7. main/CMakeLists.txt ────────────────────────────────────
-    say("\n【7/9】改 main/CMakeLists.txt")
+    say("\n【7/10】改 main/CMakeLists.txt")
     cm = tgt / "main" / "CMakeLists.txt"
     # 7a 子目录源文件
     patch_text(cm, "list(APPEND SOURCES ${BOARD_SOURCES})\n", "\n" + SOURCES_BLOCK,
@@ -259,9 +260,23 @@ def main():
         gifs_src = Path(args.gif_dir).expanduser()
         if not dry:
             assets_dir.mkdir(parents=True, exist_ok=True)
+            same = 0
             for g in sorted(gifs_src.glob("*.gif")):
-                shutil.copy2(g, assets_dir / g.name)
-        say("      ✅ 从 %s 拷入 GIF" % gifs_src)
+                dst = assets_dir / g.name
+                # ★ 源和目标可能是同一个文件（用户常直接把素材生成到
+                #   <上游>/fairy-assets 再来跑 --gif-dir）⇒ 必须跳过，
+                #   否则 shutil 抛 SameFileError 直接崩（真复现时踩到过）
+                try:
+                    if dst.exists() and dst.resolve() == g.resolve():
+                        same += 1
+                        continue
+                except OSError:
+                    pass
+                shutil.copy2(g, dst)
+            say("      ✅ 从 %s 拷入 GIF%s"
+                % (gifs_src, "（其中 %d 个已在该目录，跳过）" % same if same else ""))
+        else:
+            say("      [dry-run] 会从 %s 拷入 GIF" % gifs_src)
     gifs = sorted(p.name for p in assets_dir.glob("*.gif")) if assets_dir.is_dir() else []
 
     if gifs or "--force-emoji" in sys.argv:
@@ -293,7 +308,7 @@ def main():
         say("         （不放 GIF 就改的话，表情会是空白。放好 GIF 再重跑本脚本即可。）")
 
     # ── 8. build_default_assets.py ────────────────────────────────
-    say("\n【8/9】改 scripts/build_default_assets.py（加 fairy 表情包分支）")
+    say("\n【8/10】改 scripts/build_default_assets.py（加 fairy 表情包分支）")
     bda = tgt / "scripts" / "build_default_assets.py"
     if not bda.is_file():
         die("找不到 scripts/build_default_assets.py")
@@ -301,7 +316,7 @@ def main():
                "fairy-assets", dry, "fairy 表情包分支")
 
     # ── 9. fairy-assets/ ──────────────────────────────────────────
-    say("\n【9/9】fairy-assets/（别名表 + 说明）")
+    say("\n【9/10】fairy-assets/（别名表 + 说明）")
     if not dry:
         assets_dir.mkdir(parents=True, exist_ok=True)
         readme = assets_dir / "README.md"
@@ -329,20 +344,38 @@ def main():
     else:
         say("      [dry-run] 会建 fairy-assets/（别名表 + README）")
 
+    # ── 10. 板卡类型（★ 写进 defaults，自动生效，免去手工 menuconfig）────
+    say("\n【10/10】选板卡：CONFIG_BOARD_TYPE_M5STACK_CORE_S3=y 写进 sdkconfig.defaults.esp32s3")
+    sd = tgt / "sdkconfig.defaults.esp32s3"
+    if dry:
+        say("      [dry-run] 会确保该文件里有板卡类型那一行")
+    else:
+        if not sd.is_file():
+            sd.write_text("", encoding="utf-8", newline="\n")
+        text = sd.read_text(encoding="utf-8", errors="replace")
+        if re.search(r"^\s*CONFIG_BOARD_TYPE_M5STACK_CORE_S3=y", text, re.M):
+            say("      = 已有，跳过")
+        else:
+            with sd.open("a", encoding="utf-8", newline="\n") as f:
+                if text and not text.endswith("\n"):
+                    f.write("\n")
+                f.write("# ★ 本项目 = M5Stack CoreS3（StackChan）。\n"
+                        "#   写进 defaults 才能扛住 set-target 重新生成 sdkconfig。\n")
+                f.write("CONFIG_BOARD_TYPE_M5STACK_CORE_S3=y\n")
+            say("      ✅ 已写入 —— set-target / reconfigure 时会自动选中 CoreS3")
+
     return _next_steps()
 
 
 def _next_steps():
     say("""
 ────────────────────────────────────────────────────────────────
-  下一步（★ 顺序不能反，见 INSTALL.md 1.6）：
+  下一步（★ 顺序不能反，见 INSTALL.md §2.4）：
 
     cd <上游目录>
     . ./export.sh                     # Windows: export.bat（每个新终端都要）
-    idf.py set-target esp32s3         # 先生成 sdkconfig
-    echo "CONFIG_BOARD_TYPE_M5STACK_CORE_S3=y" >> sdkconfig   # 选 CoreS3 板卡
-    idf.py reconfigure                # 让它生效
-    idf.py build                      # 首次 10~20 分钟
+    idf.py set-target esp32s3         # 先生成 sdkconfig（板卡类型已由本脚本写进 defaults）
+    idf.py build                      # 首次 15~25 分钟
     python3 tools/verify_artifact.py build/xiaozhi.bin        # 校验产物
     idf.py -p <串口> flash
     idf.py -p <串口> monitor
@@ -350,7 +383,7 @@ def _next_steps():
   ★ 想合成一个整机 bin（给别人刷）：idf.py merge-bin
      （⛔ 不要写成 -o build/xxx.bin —— idf.py 是在 build/ 里执行的，
        那样会变成 build/build/xxx.bin 直接报错；要指定就用裸文件名）
-  ★ 服务器地址：本仓库不写死，用设备配网页填或语音说（见 INSTALL.md 1.5）
+  ★ 服务器地址：本仓库不写死，用设备配网页填或语音说（见 INSTALL.md §3）
 ────────────────────────────────────────────────────────────────""")
 
 

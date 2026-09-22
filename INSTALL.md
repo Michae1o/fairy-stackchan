@@ -203,17 +203,30 @@ python3 tools/apply_to_server.py <上游服务器目录>
 
 ### 1.3 配置 `config.yaml`
 
-在 `main/xiaozhi-server/data/.config.yaml`（或 `config.yaml`）里填这几项：
+> ★★ **必须先建 `data/.config.yaml`** —— 上游**启动时会检查这个文件**，
+> 缺了直接报 `FileNotFoundError: 找不到 data/.config.yaml`（不是"改 config.yaml 就行"）。
+
+```bash
+cd <上游服务器>/main/xiaozhi-server
+mkdir -p data                                   # Windows: mkdir data
+cp config.yaml data/.config.yaml                # Windows: copy config.yaml data\.config.yaml
+# 之后【改的是 data/.config.yaml 这一份】
+```
+
+在 `data/.config.yaml` 里填这几项：
 
 ```yaml
 server:
   ip: 0.0.0.0
   port: 8000                 # 设备用 WebSocket 连这个
   http_port: 8003            # OTA / 控制台用这个
+  auth_key: <一串 32 位以上随机字符串>   # ★ 必填，否则视觉接口重启后随机失效
+                                         #   生成：python -c "import secrets; print(secrets.token_hex(32))"
 
 LLM:
   DeepSeekLLM:
     api_key: <你的 DeepSeek Key>
+    base_url: https://api.deepseek.com
     model_name: deepseek-chat
 
 TTS:
@@ -221,7 +234,8 @@ TTS:
     api_url: http://127.0.0.1:9880
 ```
 
-（键名以你拿到的上游版本为准；上面是作者在用的那套名字。）
+（键名以你拿到的上游版本为准；上面是作者在用的那套名字。★ `LLM` 那一项的 provider 名要对上
+上游 `config.yaml` 里的字段名，填错会在启动日志里看到「配置错误: LLM 的 API key 未设置」。）
 
 ### 1.4 起服务 + 判据
 
@@ -368,8 +382,8 @@ idf.py build                   # 判据：Project build complete.
                                #       且 build/xiaozhi.bin 存在
 ```
 
-- **首次编译 15~25 分钟**：会联网下载托管组件（`managed_components/`）并从零编 LVGL 等
-  —— 之后增量编译 2~4 分钟
+- **首次编译十几分钟**（本机实测 7 分钟；视机器性能与是否已下载过组件而定）
+  —— 首次会联网下载托管组件（`managed_components/`）并从零编 LVGL 等
 - **`set-target` 会重新生成 `sdkconfig`** ⇒ 这就是为什么改动要写进 `sdkconfig.defaults*`（§2.2）
 - 编译完合成整机固件（含引导 + 分区表，方便整片刷）：
 
@@ -572,6 +586,9 @@ python -m esptool --chip esp32s3 -p <串口> -b 460800 write-flash 0x0 factory-b
 | 现象 | 真因 | 怎么办 |
 |---|---|---|
 | `idf.py: command not found` | ESP‑IDF 环境没装好 / 没开新终端 | 重开终端，跑 IDF 的 `export.ps1`（或快捷方式）后再试 |
+| 起服务器报 `FileNotFoundError: 找不到 data/.config.yaml` | 上游**必须**有这个文件 | `mkdir data` + `cp config.yaml data/.config.yaml`，之后改这一份（§1.3） |
+| 起服务器报 `Could not find Opus library` | conda 环境没激活 ⇒ `Library\bin` 不在 PATH（Windows 常见） | 先 `conda activate <环境>` 再起；或把 `<conda环境>\Library\bin` 加进 PATH |
+| 启动日志「配置错误: LLM 的 API key 未设置」 | 大模型那段没填/填错字段名 | 改 `data/.config.yaml` 的 LLM 段（§1.3） |
 | `undefined reference to ...`（板卡类符号） | §2.2 的 `CMakeLists.txt` 清单没打上 | 用 `apply_to_upstream.py` 重跑；手工的话检查 `main/CMakeLists.txt` 里那几行 |
 | `undefined reference to bmi270_init` | 托管组件没下载成功（网络） | 删 `build/` 和 `managed_components/` 重编（别自己手加 BMI270 的 `.c`） |
 | `app partition is too small` | 分区表没生效 | 确认 `sdkconfig.defaults*` 里有 `CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions/v2/16m.csv"`，且**先拷 defaults 再删 sdkconfig** 重建 |
