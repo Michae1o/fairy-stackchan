@@ -118,7 +118,7 @@ cd xiaozhi-esp32
 > ★ 注意：**编译时还会自动下载一批组件**（`managed_components/`）和 Python 依赖，
 > 那一步同样要能连外网 —— 卡在不动基本都是网络问题（见 1.6 的报错对照）。
 
-### 1.2 把本项目的改动覆盖到上游（**5 条命令，缺一不可**）
+### 1.2 把本项目的改动覆盖到上游（**6 步，缺一不可**）
 
 > **前提**：下面命令里的 `firmware/...` 指的是【本项目包】里的目录，**不是上游**。
 > 先 `cd` 到你自己放本项目的位置（把示例路径换成你的实际路径）：
@@ -149,6 +149,11 @@ cp firmware/ota.cc xiaozhi-esp32/main/ota.cc
 #    #include "display/lcd_display.h" ⇒ 放错位置会导致
 #    undefined reference to `LcdDisplay::ShowTopBarTemporarily()'
 cp firmware/display/* xiaozhi-esp32/main/display/
+
+# ⑥ 唤醒词「Hi Fairy」（★ 上游只带「你好小智」，不加这行就没有 Hi Fairy）
+#    必须写进 sdkconfig.defaults.esp32s3
+#    ⛔ 不要写进 sdkconfig —— 它每次构建会被重建，手写的改动会丢
+echo "CONFIG_SR_WN_WN9_HIFAIRY_TTS2=y" >> xiaozhi-esp32/sdkconfig.defaults.esp32s3
 ```
 
 > **覆盖的内容包括**：
@@ -454,7 +459,7 @@ std::string Ota::GetCheckVersionUrl() {
 **开始之前（前提 —— 缺一条都会卡住）**
 
 ```text
-□ 1.1 ~ 1.5 都做完了：上游已拉下来、本包已覆盖（5 条 cp）、板卡已选对、
+□ 1.1 ~ 1.5 都做完了：上游已拉下来、本包已覆盖（6 步，含唤醒词）、板卡已选对、
    main/CMakeLists.txt 已追加、config.json 里已填好服务器地址（走方式 A 时）
 □ ESP-IDF 已装好，并且【在同一个终端里 export 过】（否则 idf.py 不存在）
 □ 设备通电、数据线连着电脑，且知道它在哪个串口：
@@ -560,22 +565,17 @@ undefined reference to `XXX'
      还不行就删掉 build/ 重新编
 
 app partition is too small
-  ⇒ 见下面一节（分区表）
+  ⇒ 见上面那节（分区表）
 ```
 
 ---
 
 ## 2. 服务器部分
 
-> ★★ **建议先做这一节，再做第 1 节（固件）。**
->
-> 理由：**「服务器地址」是后面所有动作的前提** ——
-> 固件里要填的就是它，设备要连的也是它。
-> 没有地址，第 1 节的 `CONFIG_OTA_URL` 根本没法填。
->
-> ⇒ 完整工序见 [1.0 节](#10--建议的工序作者本人的做法供参考)。
-> ⇒ 本文档章节顺序是「固件 → 服务器」，只是便于阅读，
->   **实际操作顺序与之相反。**
+> ★★ **建议先做这一节（服务器），再做第 1 节（固件）** ——
+> 「服务器地址」是后面所有动作的前提：固件里要填的就是它，设备要连的也是它。
+> 完整工序与理由见 [1.0 节](#10--建议的工序作者本人的做法供参考)。
+> 本文档章节顺序只是便于阅读，**实际动手顺序与之相反。**
 
 ### 2.1 拉取上游服务器
 
@@ -583,12 +583,17 @@ app partition is too small
 git clone https://github.com/xinnan-tech/xiaozhi-esp32-server.git
 ```
 
+> ⚠️ 国内直连 github.com 大概率超时 —— 绕法与 [1.1 节](#11-拉取上游固件) 相同
+> （换 codeload 下 tarball，或先配代理）。
+
 ### 2.2 把本项目的改动覆盖到上游
 
+> **前提**：同 1.2 —— 先 `cd` 到【本项目包】的根目录（`server/patches/` 就在里面）。
+
 ```bash
-cp opensource/server/patches/*.py \
+cp server/patches/*.py \
    xiaozhi-esp32-server/main/xiaozhi-server/core/api/
-cp opensource/server/patches/admin_page.html \
+cp server/patches/admin_page.html \
    xiaozhi-esp32-server/main/xiaozhi-server/core/api/
 ```
 
@@ -663,8 +668,13 @@ python -c "import secrets; print(secrets.token_hex(32))"
 ### 2.4 启动
 
 ```bash
-python app.py          # 在 main/xiaozhi-server/ 目录下
+cd xiaozhi-esp32-server/main/xiaozhi-server
+pip install -r requirements.txt      # ★ 首次必须先装依赖（建议先建虚拟环境）
+python app.py
 ```
+
+> ★ 装依赖同样要联网（PyPI）。国内慢就挂镜像：
+> `pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple`
 
 启动后浏览器打开（**8003 是默认端口，可在 `data/.config.yaml` 的
 `server.http_port` 改；服务器侧代码会读这个配置，不写死**）：
@@ -748,9 +758,17 @@ http://<服务器IP>:8003/m       手机版控制台
 ```bash
 esptool.py --port <串口> read_flash 0 0x1000000 factory-backup.bin
 ```
+（★ 上面是 esptool v4 及更早的写法；**v5 已改成子命令形式**，见下面「本项目在用的写法」）
+
+**本项目在用的写法（esptool v5）**：
+
+```bash
+python -m esptool --chip esp32s3 -p <串口> -b 460800 read-flash 0 0x1000000 factory-backup.bin
+```
 
 恢复：
 
 ```bash
 esptool.py --port <串口> write_flash 0x0 factory-backup.bin
 ```
+（v5 的等价写法：`python -m esptool --chip esp32s3 -p <串口> write-flash 0x0 factory-backup.bin`）

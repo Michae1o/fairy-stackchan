@@ -6,7 +6,7 @@
 
 ## 文件清单
 
-> 完整目录结构见 `INSTALL.md` 第 1.2 节（5 条 cp 对应 5 个位置）。
+> 完整目录结构见 `INSTALL.md` 第 1.2 节（6 步：5 个覆盖位置 + 唤醒词）。
 
 ### 本项目核心改动（`board-core-s3/`）
 
@@ -87,6 +87,9 @@ SI12T 是 `0x68`。**两者不冲突，可以同时使用**。
 （官方 `hal_imu.cpp` 用的就是 0x69。）
 
 ### ⑤ 双唤醒词要写进 `sdkconfig.defaults.esp32s3`
+
+> ★ 安装步骤里已包含这一步（`INSTALL.md` 1.2 第 ⑥ 步）——
+> 上游默认已带「你好小智」，所以只需补下面 Hi Fairy 那一行。
 
 ```
 CONFIG_SR_WN_WN9_HIFAIRY_TTS2=y
