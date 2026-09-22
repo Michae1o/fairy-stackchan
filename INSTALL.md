@@ -69,36 +69,62 @@ curl -L -o xiaozhi-esp32.tar.gz https://codeload.github.com/78/xiaozhi-esp32/tar
 
 ## §1 固件
 
-### 1.0 ★ 推荐工序（全程照着走，别跳）
+### 1.0 ★ 推荐工序（三条线，照这个顺序，别跳）
+
+> **顺序不是随便定的：先服务器、后设备。**
+> 服务器那条线**不用设备、不用编译就能验证**，改错的代价小；
+> 设备线一次编译十几分钟、刷机不可逆 —— 所以把服务器先跑通，能排掉一大半误判。
+>
+> ★ 原则：**先跑通，再换件** —— 先用上游默认件把整条链路跑通，
+> 再逐个换成自己的（ASR / LLM / TTS），出问题才好定位。
+
+**线一：服务器（先做，不碰设备）**
 
 ```text
-⓪ 先备份出厂固件 ★ 别跳过
-     出厂固件一旦被覆盖就回不去了。一条命令（3~5 分钟）：
-       python -m esptool --chip esp32s3 -p <串口> read-flash 0 0x1000000 factory-backup.bin
-     判据：得到一个 16,777,216 字节的文件；存好（别只放桌面）
-     ⚠️ 这条命令会先复位设备再读 —— 设备正在跑的东西会被打断
+① 拉服务器源码 + 装依赖（§2.1）
+② 打服务器改动：tools/apply_to_server.py（§2.2）
+③ 配置：★ 先【用上游默认件】跑通 —— 本地 ASR（零 Key）、先不接自建音色；
+     大模型填你自己的 Key（§2.3）
+④ 起服务：python app.py ⇒ /admin 返回 200（§2.4）
+⑤ ★★ 服务器线的判据（不刷固件）：用仓库里的模拟设备脚本跑一遍
+     python3 tools/test_server_e2e.py --audio ref.wav
+     ⇒ 四个 ✅ 才算通：服务器 hello ｜ ASR 识别 ｜ LLM 回答 ｜ TTS 音频帧 > 0
+⑥ 换件：接上你的音色（GPT-SoVITS :9880，§3）⇒ 再跑一次 ⑤
+     ⇒ 这一步过了，「服务器那条线」才算真的通
+```
 
-① 装 ESP-IDF v6.1（§1.4）⇒ 新开终端 `idf.py --version` 能出版本号
-② 拉仓库（§1.1）：本包 + 上游固件（服务器稍后，§2.1）
-③ 拷一份【独立副本】用来改/编（§1.4 铁律 1）—— 别在你长期保留的那份源码上直接编
-④ 打固件改动：`python3 tools/apply_to_upstream.py <上游副本>`（§1.2）
-⑤ 生成素材：`python3 tools/make_face.py --out fairy-assets`
-     ⇒ `python3 tools/verify_artifact.py --gif-dir fairy-assets`（§1.3）
-⑥ 编译：set-target → build → merge-bin（§1.4）
+**线二：固件（服务器通了再动设备）**
+
+```text
+⑦ 先备份出厂固件（★ 唯一不可逆的一步，别跳过）：
+     python -m esptool --chip esp32s3 -p <串口> read-flash 0 0x1000000 factory-backup.bin
+     判据：得到 16,777,216 字节的文件，存好
+⑧ 装 ESP-IDF v6.1（§1.4.0）⇒ 新终端里 idf.py --version 能出版本号
+⑨ 拉本包 + 上游固件（§1.1）；拷一份【独立副本】来改/编（§1.4 铁律 1）
+⑩ 打固件改动：python3 tools/apply_to_upstream.py <上游副本>（§1.2）
+⑪ 生成素材：tools/make_face.py --out fairy-assets
+     ⇒ tools/verify_artifact.py --gif-dir fairy-assets（§1.3）
+⑫ 编译：set-target → build → merge-bin（§1.4）
      判据必须含 **build/xiaozhi.bin 存在**
-⑦ 验产物：`python3 tools/verify_artifact.py build/merged-binary.bin`（§1.4）
-⑧ 烧录（§1.5）⇒ 串口日志出现 `WS: Connecting to ws://…`（§1.6）
-⑨ 起服务器（§2）：`python app.py` ⇒ `/admin` 返回 200
-⑩ 让设备指到你的服务器（§2.5）：设备配网页 →「高级选项」→ 自定义 OTA 地址
-⑪ 攒改动再编：小改动别急着编（首次 15~25 分钟，之后 2~4 分钟），一次编完
+⑬ 验产物：tools/verify_artifact.py build/merged-binary.bin（§1.4）
+⑭ 烧录（§1.5）⇒ 串口出现 `WS: Connecting to ws://…`（§1.6）
+```
+
+**线三：合流（让设备连到你的服务器）**
+
+```text
+⑮ 设备配网页 →「高级选项」→「自定义 OTA 地址」：
+     http://<服务器IP>:<http_port>/xiaozhi/ota/     （默认 8003）
+⑯ 整机联调：喊唤醒词 → 说话 ⇒ 屏幕表情在动、喇叭是你的音色
 ```
 
 **为什么是这个顺序**
 
-- **素材必须在编译前放好** —— 素材是在编译时打包进 `assets` 分区的；
-  编完再换素材就得**重编一次**（或者只重烧 assets，见 §1.5 备注）。
-- **先烧固件、后起服务器也行** —— 两者互不影响；先烧可以先确认硬件和屏幕是好的。
-- **先备份** —— 这是唯一不可逆的一步。
+- **线一不用设备也不用编译** ⇒ 先把服务器排干净；
+  否则设备刷完连不上，你会去怀疑固件（这是最常见的误判方向）。
+- **⑪ 必须在 ⑫ 之前**：素材是**编译时**打包进 `assets` 分区的，编完再换素材要重编一次。
+- **⑦ 必须最先做**：整条流程里唯一不可逆的一步。
+- **小改动别急着编**：首次编译 15~25 分钟、之后 2~4 分钟 ⇒ 攒够一次编。
 
 **★ 五条铁律（踩出来的，照做能省几小时）**
 
@@ -393,12 +419,28 @@ cd <上游服务器>/main/xiaozhi-server
 python app.py
 ```
 
-**成功判据**（三条都通才算服务器 OK）：
+**成功判据**（四条都通才算服务器 OK）：
 
 1. 控制台 `http://<服务器IP>:8003/admin` → **HTTP 200**，页面标题 `Fairy 控制台`
 2. 手机版 `http://<服务器IP>:8003/m` → **200**
 3. `http://<服务器IP>:8003/admin/api/state` → **200**（返回 JSON）
    —— 它 200 说明「对话记录 + 设备注册表」都接对了
+4. ★★ **整条语音链路**（不用设备）：
+
+```bash
+python3 tools/test_server_e2e.py --audio <一段 5~10 秒人声 wav> \
+        --url ws://<服务器IP>:8000/xiaozhi/v1/
+```
+
+它会**模拟一台设备**：握手 → 发音频 → 看服务器有没有回
+`ASR 识别` / `LLM 回答` / `TTS 音频帧`。四个 ✅ 才算这条线通了：
+
+```text
+服务器 hello ✅ ｜ ASR 识别 ✅ ｜ LLM 回答 ✅ ｜ TTS 音频帧 > 0 ✅
+```
+
+没过时它会直接告诉你去查哪一环（ASR 配置 / 大模型 Key / 音色服务），
+**别带着没通的服务器去刷固件** —— 那样你会去怀疑固件。
 
 ### 2.5 让设备连过来（★ 不用重刷固件）
 
@@ -431,9 +473,10 @@ python app.py
 
 | 验什么 | 命令 | 通过判据 |
 |---|---|---|
+| **服务器链路**（先验这个） | `python3 tools/test_server_e2e.py --audio ref.wav` | 四个 ✅：hello / ASR / LLM / TTS 帧 > 0 |
 | 表情素材 | `python3 tools/verify_artifact.py --gif-dir fairy-assets` | 尺寸 320×240、无限循环、合计 ≤8MB |
 | 固件产物 | `python3 tools/verify_artifact.py <上游>/build/merged-binary.bin` | 双唤醒词 ✅、两个 MCP 工具 ✅、无内网 IP ✅、内嵌 GIF > 0 |
-| 服务器 | 浏览器开 `/admin` | HTTP 200 + `Fairy 控制台` |
+| 服务器控制台 | 浏览器开 `/admin` | HTTP 200 + `Fairy 控制台` |
 | 设备 | `idf.py monitor` | `WS: Connecting to ws://<你的IP>:8000/...` |
 | 整机 | 喊唤醒词 → 说话 | 屏幕有表情反应、喇叭有回话 |
 

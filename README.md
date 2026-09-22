@@ -74,7 +74,7 @@ python3 tools/apply_to_server.py   <上游 xiaozhi-server>   # ③ 把服务器�
 | [`firmware/`](firmware/README.md) | 固件的**全部**改动源码（板卡层 / 头像与装饰器 / 本地组件 / 显示层）+ `CMakeLists.append.txt` |
 | [`firmware-bin/`](firmware-bin/README.md) | 免编译固件 + 三种刷机方法 + 首连设置 + 排错 |
 | [`server/`](server/README.md) | 服务器端**全部**改动源码（10 个文件，按镜像目录结构放） |
-| [`tools/`](tools/) | 4 个脚本：生成素材 / 应用固件改动 / 应用服务器改动 / 校验产物 |
+| [`tools/`](tools/) | 5 个脚本：生成素材 / 应用固件改动 / 应用服务器改动 / 校验产物 / **验服务器链路（模拟设备）** |
 | [`fairy-assets/`](fairy-assets/README.md) | **空目录** —— 原本放 Fairy 表情 GIF，不随包（说明在该目录 README） |
 | [`voice-package/`](voice-package/README.md) | 音色：零样本克隆 / 微调两条路，参考音频怎么录 |
 | [`CREDITS.md`](CREDITS.md) | 出处、授权、素材与音色的版权说明 |
@@ -86,7 +86,7 @@ python3 tools/apply_to_server.py   <上游 xiaozhi-server>   # ③ 把服务器�
 
 | | 内容 |
 |---|---|
-| **有** | 固件改动源码（板卡层 / 头像与装饰器 / 本地组件 / 显示层）· 服务器改动源码（10 文件）· 4 个工具脚本 · 参数与做法文档 · 免编译固件 |
+| **有** | 固件改动源码（板卡层 / 头像与装饰器 / 本地组件 / 显示层）· 服务器改动源码（10 文件）· 5 个工具脚本 · 参数与做法文档 · 免编译固件 |
 | **没有** | **不含任何美术素材**（仓库里 0 个图片文件）· 参考音频 · TTS 微调权重 · 作者的内网 IP / 密钥 / 本机路径 |
 
 表情素材、音色、权重的替代办法，分别见
@@ -99,11 +99,14 @@ python3 tools/apply_to_server.py   <上游 xiaozhi-server>   # ③ 把服务器�
 如果你自己写代码不多、主要让 AI Agent（Claude Code / Cursor / Hermes 等）帮你做，
 把这个仓库丢给它，按这个顺序让它做：
 
-1. 读 **`INSTALL.md`**（它是唯一安装依据）
+1. 读 **`INSTALL.md`**（它是唯一安装依据）；**动手顺序按 §1.0 的三条线**
+   —— **先服务器线**（不用设备就能验证）→ 再固件线 → 最后合流
 2. 用 **`tools/apply_to_upstream.py`** 打固件改动、`tools/apply_to_server.py` 打服务器改动
    —— 别让它手抄补丁，这两个脚本带自检
-3. 编译前用 **`python3 tools/verify_artifact.py --gif-dir fairy-assets`** 验素材规格
-4. 编译后用 **`python3 tools/verify_artifact.py build/merged-binary.bin`** 验产物
+3. 服务器起来后先用 **`python3 tools/test_server_e2e.py --audio ref.wav`** 验整条链路
+   （模拟设备跑握手 → ASR → LLM → TTS，四个 ✅ 才继续）
+4. 编译前用 **`python3 tools/verify_artifact.py --gif-dir fairy-assets`** 验素材规格
+5. 编译后用 **`python3 tools/verify_artifact.py build/merged-binary.bin`** 验产物
    （会告出：双唤醒词在不在、两个 MCP 工具在不在、有没有泄漏私货 IP、内嵌了几张 GIF）
 
 ---
