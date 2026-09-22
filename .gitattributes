@@ -1,0 +1,4 @@
+# 行尾兜底：这几个后缀一律用 LF 存进仓库
+# （Windows 上编辑过也不会被塞成 CRLF —— .sh 带 CR 在 Linux/WSL/macOS 上会报 $'\r': command not found）
+*.sh  text eol=lf
+*.py  text eol=lf
