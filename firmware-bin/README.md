@@ -57,37 +57,65 @@ md5：   034b0b58516625017e382d29341e83fc
 
 ## 二、怎么刷
 
-### 烧录方法 A：用 M5Stack 官方工具（推荐新手）
+> 下面四种任选一种。★ **推荐方法 A：不用装任何软件、也不用命令行。**
+>
+> **验证程度（如实说明）**：**B 是本项目自己烧固件时实际在用的命令**（实测跑通）；
+> **A** 是开源网页工具、其页面明确写了支持自定义 `.bin`，但**本项目没在真机上试过**；
+> **C** 依赖你自己的服务器；**D ⛔ 未实测**（见该条说明）。
 
+### 烧录方法 A（★ 推荐）：在浏览器里刷，免安装
+
+```text
+1. 用【电脑】的 Chrome 或 Edge 打开：
+      https://esptool.spacehuhn.com/         (ESPWebTool，开源免安装)
+
+2. 用 USB-C 数据线把设备连电脑（★ 要数据线，不是充电线）
+
+3. 点 CONNECT → 选设备对应的串口（Windows 上形如 COM3）
+
+4. 点「Add your .bin」→ 选下载好的 fairy-stackchan-universal.bin
+   ⚠️ 地址(address) 填 0x0 —— 这是【合并固件】，必须从 0x0 开始烧
+
+5. 点 Program，等 1~2 分钟烧完
 ```
-1. 打开 https://docs.m5stack.com/en/download  （或用 Chrome 内核浏览器）
-   ⇒ 搜 "M5Burner"，或者在网页版烧录工具里选 StackChan
 
-2. 用 USB-C 线把设备连电脑（★ 要数据线，不是充电线）
+> ⚠️ 必须用**电脑上的 Chrome / Edge**（靠 WebSerial 能力；
+> Firefox / Safari / 手机浏览器都不支持）。
 
-3. 在烧录工具里选「自定义固件」→ 选择本目录的
-   fairy-stackchan-universal.bin
-
-4. 点烧录，等待完成（约 1~2 分钟）
-```
-
-### 烧录方法 B：用 esptool（命令行）
+### 烧录方法 B：命令行 esptool（最稳，会用命令行的人）
 
 ```bash
-# 装工具
+# 装工具（需要 Python）
 pip install esptool
 
-# 烧录（★ 端口按实际改，Windows 是 COM3 这样的名字）
-esptool.py --chip esp32s3 --port /dev/ttyACM0 --baud 921600 \
-  write_flash 0x0 fairy-stackchan-universal.bin
+# 烧录（★ 端口按实际改：Windows 上形如 COM3，在「设备管理器 → 端口」里看）
+python -m esptool --chip esp32s3 -p COM3 -b 460800 \
+    --before default-reset --after hard-reset \
+    write-flash --flash-mode dio --flash-size 16MB --flash-freq 80m \
+    0x0 "fairy-stackchan-universal.bin"
 ```
 
-> ⚠️ 这是**合并固件**，所以烧到 `0x0` 就行（不用分别烧 bootloader/分区表/app）。
+> ⚠️ 这是**合并固件**，所以地址写 `0x0` 就行（不用分别烧 bootloader / 分区表 / app）。
+> 上面这串参数就是**本项目自己烧固件时实际在用的命令**（实测跑通，esptool v5 用
+> `write-flash`）⇒ 想要最稳就用这条：把 `-p COM3` 换成你的串口、文件名保持不变即可。
 
 ### 烧录方法 C：设备已有小智固件 ⇒ 用 OTA 升级
 
 需要你自己的服务器提供 OTA 服务（本项目服务器自带），再把本固件放进 OTA 目录。
-新手建议直接用方法 A（做法见 [../INSTALL.md](../INSTALL.md)）。
+做法见 [../INSTALL.md](../INSTALL.md)。
+
+### 烧录方法 D：M5Stack 官方的 M5Burner（⛔ 未实测，仅供参考）
+
+> ⛔ **本方案未实测** —— 作者**没有**用 M5Burner 烧过本项目的固件；
+> 它的官方文档也只写了烧官方 UiFlow 固件 / 产品 demo（以及导出、发布功能），
+> **没写明支持烧本地自定义 `.bin`**。⇒ 出问题请改用方法 A / B。
+
+M5Burner 是 M5Stack 的官方烧录软件，**需要先去官网下载安装**（Windows / macOS / Linux，
+下载页 <https://docs.m5stack.com/zh_CN/download>）。它的固件列表以**官方 UiFlow 固件和
+产品 demo** 为主。
+
+如果你的 M5Burner 里能找到「自定义固件 / Custom」入口，也可以试着用它烧，
+⚠️ 地址同样填 **`0x0`**。
 
 ---
 

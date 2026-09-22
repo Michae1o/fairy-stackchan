@@ -250,9 +250,9 @@ http://<你的服务器IP>:8003/m       手机版 H5（小屏优化过）
    （找 fairy-stackchan-universal.bin，约 11.9 MB）
 
 ② 刷进去（三选一，见 [firmware-bin/README.md](firmware-bin/README.md)）
-   · M5Burner（官方工具，适合新手）
+   · ★ 网页烧录器（esptool.spacehuhn.com，免安装；用电脑的 Chrome/Edge）
    · esptool（命令行，一个命令）
-   · 网页版烧录器
+   · M5Burner（M5Stack 官方软件，需下载安装）
 
 ③ 让设备连上你的服务器（三选一，见该文档第三节）
    · ★ 在设备配网页的「高级选项」页签里填地址（免编译首选）
