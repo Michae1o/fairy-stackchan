@@ -83,19 +83,34 @@ static void RememberSelfOta() {
 //   若只靠 CONFIG_OTA_URL 兜底，而它等于官方地址（开源版默认），
 //   切回 Fairy 就会连官方服务器 ⇒ 用户看到"Fairy 没指向自己服务器"。
 //   ⛔ 不能写死 IP（用户要求"自动识别"）⇒ 用【设备实际在用的地址】。
-// ★ 从 WebSocket 地址推导 OTA 地址并记住
+// ★ 从 WebSocket 地址推导 OTA 地址并记住（★ 有严格前置条件，见函数内注释）
 //   为什么要它：开源固件不含 CONFIG_OTA_URL，
 //   若让用户"对着设备念 IP"体验极差（ASR 还容易听错）。
-//   ⇒ 改为：设备连上服务器后，用【它正在连的地址】自动推导并记住。
+//   ⇒ 改为：设备连上服务器后，用【它正在连的地址】推导并记住。
 //   推导规则：
 //       ws://<IP>:<wsPort>/xiaozhi/v1/  ⇒  http://<IP>:<httpPort>/xiaozhi/ota/
-//       其中 httpPort 优先用 OTA 响应里的提示（存在 fairy_skin/http_port），
-//       没有则用 8003 兜底。
+//       其中 httpPort【不猜】：① 显式配置(fairy_skin/http_port，保留键)
+//                             ② 从当前生效地址里取端口（确切值）
+//                             ③ 8003 仅作最后兜底
+//   ⛔ 本函数只在「还不知道确切地址」时才会写（见守卫 1），
+//      绝不覆盖 RememberSelfOtaIfCustom() 记下的确切值。
 void RememberOtaFromWsUrl(const std::string& ws_url) {
     if (ws_url.empty()) {
         return;
     }
-    // 只处理 ws://host:port/... 形式
+    // ★★ 守卫 1：已经知道确切的自建地址时，【不要】用推导值去覆盖它。
+    //   为什么：ota.cc 的 GetCheckVersionUrl() 每次取地址前，都会拿
+    //   【设备正在用的那条地址】调用 RememberSelfOtaIfCustom() 写入确切值
+    //   （端口来自地址本身）；而本函数推出来的端口只能靠猜 ——
+    //   覆盖了会把地址改坏，并被 SelfOtaUrl() 第①层读走、
+    //   在切皮肤时写进 wifi/ota_url ⇒ 设备重启后连错端口、要清 NVS。
+    {
+        Settings st(kNvsNamespace, false);
+        if (!st.GetString(kKeySelfOta, "").empty()) {
+            return;
+        }
+    }
+    // 只处理 ws://host:port/... 形式（官方是 wss://，天然不走这里）
     const std::string scheme = "ws://";
     if (ws_url.compare(0, scheme.size(), scheme) != 0) {
         return;
@@ -115,14 +130,37 @@ void RememberOtaFromWsUrl(const std::string& ws_url) {
     if (host.empty()) {
         return;
     }
-    // HTTP 端口：优先用已记录的（服务器告知），否则 8003
-    std::string http_port = "8003";
+    // ★★ 守卫 2：官方域名不算「自建」。
+    //   官方通常下发 wss://（已被上面的 scheme 判断挡住）；
+    //   这里防的是「镜像 / 反代返回明文 ws://」的情况 ——
+    //   否则会把 http://api.tenclass.net:8003/... 记成自建地址。
+    if (host.find("tenclass.net") != std::string::npos) {
+        return;
+    }
+    // HTTP 端口【不乱猜】，按可靠性排序
+    //   ① 显式配置（fairy_skin/http_port，保留键，目前没有写入者）
+    //   ② 从【当前生效的 OTA 地址】里取端口（确切值）
+    //   ③ 8003 —— 仅当上面都没有时才兜底
+    std::string http_port;
     {
         Settings st(kNvsNamespace, false);
-        std::string p = st.GetString("http_port", "");
-        if (!p.empty()) {
-            http_port = p;
+        http_port = st.GetString("http_port", "");
+    }
+    if (http_port.empty()) {
+        std::string cur = CurrentOtaUrl();   // wifi/ota_url ?: CONFIG_OTA_URL
+        size_t sp = cur.find("://");
+        if (sp != std::string::npos) {
+            size_t c = cur.find(':', sp + 3);
+            if (c != std::string::npos) {
+                size_t e = cur.find('/', c + 1);
+                http_port = cur.substr(c + 1,
+                                       (e == std::string::npos) ? std::string::npos
+                                                                : e - c - 1);
+            }
         }
+    }
+    if (http_port.empty()) {
+        http_port = "8003";
     }
     std::string ota = "http://" + host + ":" + http_port + "/xiaozhi/ota/";
     Settings st(kNvsNamespace, false);
