@@ -202,7 +202,7 @@ Release 里的 fairy-stackchan-universal.bin **内嵌了 2 个表情动画 GIF**
 
 ---
 
-## 三之二、Fairy 形象的另一条路：用代码绘制（★ 推荐做法）
+## 三之二、另一条路：用代码画（★ 只是思路与参考，本仓库不含实现）
 
 **参考项目：[Chengzhibense/Fairy-DSH](https://github.com/Chengzhibense/Fairy-DSH)（作者：B 站「橙汁本色」）**
 
@@ -234,8 +234,8 @@ Release 里的 fairy-stackchan-universal.bin **内嵌了 2 个表情动画 GIF**
   · 可做动态效果（代码控制）
 ```
 
-**本项目建议**：若你要公开分发 Fairy 皮肤，**优先考虑走「用代码画」这条路**
-（用代码画出风格，而不是直接分发官方/二创的美术文件）。
+**本项目建议**：若你要公开分发 Fairy 皮肤，**可以考虑**走「用代码画」这条路
+（用代码画出风格，而不是直接分发官方/二创的美术文件）—— 用哪种由你决定。
 
 > ⚠️ 注意：即使是"用代码画"，如果刻意复刻了受版权保护的具体角色形象，
 > 仍有风险。建议画成"风格相似"而非"精确复刻"。
@@ -245,7 +245,7 @@ Release 里的 fairy-stackchan-universal.bin **内嵌了 2 个表情动画 GIF**
 
 > ★ **本节只讲「怎么画、为什么这么画不踩版权」**。
 > 画完之后**怎么变成设备能加载的文件**（格式 / 尺寸 / 循环 / 体积 / 放哪），
-> 见 [firmware/README.md](firmware/README.md) 的「Fairy 素材的硬参数表」
+> 见 [firmware/README.md](firmware/README.md) 的「表情素材（GIF）的硬参数表」
 > 与「从矢量图 / 代码导出『设备能吃』的素材」两节 ——
 > 设备**不解析 SVG**，最终必须是位图 GIF/PNG。
 

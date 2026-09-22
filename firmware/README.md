@@ -304,7 +304,7 @@ enum class Skin {
 
 ---
 
-#### ★★ Fairy 素材的硬参数表（★ 使用者最容易卡死的地方）
+#### ★★ 表情素材（GIF）的硬参数表（★ 使用者最容易卡死的地方）
 
 > 上面说「替换素材」，但**具体放哪、几张、多大、什么名字、什么格式**？
 > 下面这张表是**照真实代码填的**，照做就能塞进去。
@@ -426,16 +426,47 @@ idf.py build
 
 ---
 
-## ★ Fairy 形象是怎么做出来的（⑤ 指路 + ⑥ 参数）
+## ★ 形象相关：两套脸分别在哪儿、本仓库给了什么
 
-> 本项目的「Fairy 皮肤」**不是**一个独立模块，而是**替换了官方几何脸的几个文件**。
-> 这里说清怎么找、怎么改、我们的参数是多少。
+> ⚠️ **先把话说清楚**（这一节以前写得容易让人误解）：
+> 本仓库**不含 Fairy 形象本身** —— 0 个图片文件，也**没有**「用代码画 Fairy」的实现。
+> 本仓库真正给的是三样东西：
+>
+> ```text
+> ① 接口与参数：设备要什么素材、放在哪、怎么改（本节 + INSTALL 1.7）
+> ② 一个现成的、代码画的脸：官方几何脸（M5Stack，MIT）—— 改常量就能改样子（5.2 / 5.3）
+> ③ 「用代码画你自己的脸」的方法与参考：见 CREDITS.md 三之二（含版权边界）
+> ```
+>
+> ⇒ 想要「和作者设备上**一样**的 Fairy 脸」，只能**自备素材**
+> （作者那两张 GIF 涉及角色版权，不在仓库里）。
 
-### 5.1 文件在哪（★ 指路）
+### 5.1 你设备上的两套脸，分别是怎么来的
+
+```text
+【Fairy 皮肤】显示 → 全屏 GIF 表情包
+    素材：xiaozhi-esp32/fairy-assets/（★ 仓库不附带，见 INSTALL 1.7）
+    机制：main/CMakeLists.txt 里 set(DEFAULT_EMOJI_COLLECTION fairy)
+          + scripts/build_default_assets.py 的 fairy 分支
+          + _emote_aliases.json（情绪名 → GIF 文件）
+
+【几何皮肤】显示 → 代码画的官方几何脸（不是图片）
+    素材：firmware/board-core-s3/stackchan_avatar/（M5Stack 官方，MIT）
+    机制：stackchan_geometry_display.cc + DefaultAvatar，
+          眼睛/嘴/说话气泡都是 LVGL 图元 + 常量画出来的
+    切换：m5stack_core_s3.cc 里 geometry_display_->SetGeometryVisible(geom)，
+          其中 geom = (skin == Skin::Geometry)
+          ⇒ ★ 也就是说：**Fairy 皮肤下几何脸是藏起来的**
+```
+
+**⇒ 想改「Fairy 那套脸」= 换 `fairy-assets/` 里的 GIF；**
+**⇒ 想改「几何脸」= 改 `skins/default/` 里的常量（见 5.2 / 5.3）。**
+
+### 5.2 几何脸的文件在哪（★ 改几何脸就从这几个文件下手）
 
 ```
 firmware/board-core-s3/stackchan_avatar/
-├── skins/default/            ← ★ Fairy 形象就在这里（名字沿用了官方的 "default"）
+├── skins/default/            ← ★ 几何脸就在这里（目录名沿用了官方的 "default"）
 │   ├── default.h             主类（DefaultAvatar / DefaultEyes / ...）
 │   ├── default.cpp
 │   ├── eyes.cpp              ★ 眼睛：位置 / 大小 / 偏移 / 眨眼
@@ -452,9 +483,9 @@ firmware/board-core-s3/stackchan_avatar/
     └── assets/*.c            装饰器的图片数据（★ 这里是唯一含位图的地方）
 ```
 
-**⇒ 改形象 = 改 `skins/default/` 那几个 `.cpp` 里的常量。**
+**⇒ 改几何脸 = 改 `skins/default/` 那几个 `.cpp` 里的常量（参数见下一节）。**
 
-### 6.1 ★ 我们的参数（可直接照抄改）
+### 5.3 几何脸的参数（★ 官方默认值，本项目**没改过**）
 
 > ⚠️ **这些是「官方几何脸」的官方默认值**，本项目**没有改过**——
 > 我们只是把默认皮肤当成“几何脸 + 自定义装饰器”来用。
@@ -509,7 +540,7 @@ lv_color_t secondaryColor = lv_color_black();   // 背景
 > ★ **注意**：`skins/default/` 里**还有一层 `assets/`**（气泡箭头等小图）。
 > 如果你要完全替换形象，把那几个 `.c` 一起换掉（它们只是 LV_IMAGE 数组，不是照片）。
 
-### 5.2 为什么叫 "default" 而不叫 "fairy"
+### 5.4 为什么目录叫 "default" 而不叫 "fairy"
 
 ```
 官方的默认皮肤类就叫 DefaultAvatar（DefaultEyes / DefaultMouth ...）
@@ -522,7 +553,7 @@ lv_color_t secondaryColor = lv_color_black();   // 背景
 **⇒ 如果你想让它叫 `fairy/`**：把 `skins/default/` 复制成 `skins/fairy/`，
 改类名 + 在 `stackchan_geometry_display.cc` 里 include 新路径即可（注意两个地方都要改）。
 
-### 5.3 ★ 「Fairy」其实是三段拼出来的（完整链路）
+### 5.5 ★ 「完整角色」= 上面两套脸之一 + 人设 + 音色
 
 ```
 「Fairy 效果」= 固件形象 + 服务器人设 + 音色参考
@@ -531,12 +562,13 @@ lv_color_t secondaryColor = lv_color_black();   // 背景
              + 装饰器     （人设）      ref_audio
 ```
 
-**① 形象（固件侧）**
+**① 形象（固件侧）—— 上面两套脸任选其一**
 
 ```
-skins/default/{eyes,mouth,speech_bubble}.cpp   ← 脸长什么样（见上面 6.1 参数）
-decorators/{heart,dizzy,...}.cpp + assets/     ← 摸头冒爱心、甩晕转圈
-stackchan_geometry_display.cc L47-52           ← ★ 情绪字符串 → 枚举 的映射
+· Fairy 皮肤  ：fairy-assets/*.gif + _emote_aliases.json（★ 素材要自备）
+· 几何皮肤    ：skins/default/{eyes,mouth,speech_bubble}.cpp（参数见 5.3）
+                decorators/{heart,dizzy,...}.cpp + assets/  ← 摸头冒爱心、甩晕转圈
+                stackchan_geometry_display.cc L47-52        ← ★ 情绪字符串 → 枚举 映射
 ```
 
 情绪映射长这样（想加情绪就改这里）：
@@ -571,13 +603,13 @@ TTS:
 > 形象在固件、人设在 prompt、音色在 TTS 配置。三处都换了才是完整的「换角色」。
 > 只换形象 ⇒ 脸是 Fairy 但说话像助手；只换 prompt ⇒ 性格对但脸是几何脸。
 
-### 5.4 ⚠️ 本项目**没有**的做法（别找了）
+### 5.6 ⚠️ 本仓库**没有**的（别找了）
 
 ```
-✘ 没有独立的 FairyAvatar 类（直接用了官方 DefaultAvatar）
-✘ 没有 GIF 动画文件（几何脸是矢量画的，不是逐帧图）
-✘ 没有把 Fairy 的图打包进仓库（版权 + 体积原因，见 CREDITS.md）
-✘ 没有做官方的「官方皮肤美化」——我们只做了装饰器（爱心/晕眩/生气/害羞/流汗）
+✘ 没有 Fairy 的形象素材（0 个图片文件，也没有「画 Fairy」的代码 ⇒ 要自己准备）
+✘ 没有独立的 FairyAvatar 类（几何脸直接用了官方的 DefaultAvatar）
+✘ 几何脸不是逐帧图（它是 LVGL 图元画的）；Fairy 那套才是 GIF，但那套素材不随仓库
+✘ 没做官方皮肤的「美化」—— 几何脸部分只加了装饰器（爱心/晕眩/生气/害羞/流汗）
 ```
 
 ---
