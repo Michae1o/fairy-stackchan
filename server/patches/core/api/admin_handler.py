@@ -1,6 +1,6 @@
 """Fairy 控制台（Web 管理界面）
 
-挂在原有 HTTP 服务器（8003）上，路径 /admin。
+挂在原有 HTTP 服务器上（端口取配置 `server.http_port`，默认 8003），路径 /admin。
 
 功能（第一步）：
   · 改 LLM（模型名 / base_url / temperature / max_tokens）
@@ -1201,7 +1201,15 @@ class AdminHandler:
         ])
         # ★ 提示文本：不要只写 127.0.0.1 —— 手机/平板要用局域网 IP 访问
         #   （控制台已放行局域网，见 _is_lan）
+        # ★ 端口【不写死】：优先读配置 server.http_port，取不到才用默认 8003
+        _hp = ""
+        try:
+            _hp = str(((self.config or {}).get("server") or {}).get("http_port", "") or "")
+        except Exception:
+            _hp = ""
+        if not _hp:
+            _hp = "8003"      # 默认值（配置里没写时才轮到它）
         self.logger.bind(tag=TAG).info(
-            "Fairy 控制台已挂载: http://<本机IP>:8003/admin"
+            "Fairy 控制台已挂载: http://<本机IP>:%s/admin"
             "（本机可用 127.0.0.1；手机/平板用局域网 IP，如 "
-            "http://192.168.x.x:8003/admin）")
+            "http://192.168.x.x:%s/admin；改过端口就换成你的端口）" % (_hp, _hp))

@@ -511,7 +511,8 @@ python -m esptool --chip esp32s3 -p <串口> -b 460800 write-flash 0x0 factory-b
 1. 设备开机后，如果连不上 WiFi（或点一下屏）会进入**配网模式**，屏幕显示热点名
 2. 电脑/手机连上那个热点，浏览器打开 `192.168.4.1`
 3. 切到 **`Advanced` / 高级选项** 页签 → 填 **「自定义 OTA 地址」**：
-   `http://<你的服务器IP>:8003/xiaozhi/ota/`
+   `http://<你的服务器IP>:<http_port>/xiaozhi/ota/`
+   （`<http_port>` = 你配置里的 `server.http_port`，**默认 8003**；改过就写你的端口）
 4. 保存 → 设备重启 → 串口日志里应该出现 `WS: Connecting to ws://<你的IP>:8000/...`
 
 这个输入框写的是设备 NVS 里的 `wifi/ota_url`（和固件用的同一个键），
