@@ -9,16 +9,32 @@
 ```
 硬件
   · M5Stack StackChan 整机（CoreS3 + 底座，含舵机 / 触摸 / IMU）
-  · USB-C 数据线（能传数据，不是只能充电的）
+  · USB-C 数据线（★ 要能传数据的，不是只能充电的）
 
-软件
-  · 固件编译环境：ESP-IDF v5.x 或 v6.x（官方推荐 v5.4+）
-    ⚠️ 本项目在 ESP-IDF v6.1 上验证通过
+软件（都要自己装）
+  · 固件编译环境：ESP-IDF（上游要求 v5.4+；★ 本项目在 v6.1 上实测通过）
   · 服务器：Python 3.10+（建议 3.12）
+  · 一个终端：Windows 用 PowerShell / cmd，Linux / macOS 用自带终端
 
-上游项目（必须先拉下来）
-  · 固件  https://github.com/78/xiaozhi-esp32
-  · 服务器 https://github.com/xinnan-tech/xiaozhi-esp32-server
+网络（★ 最容易被低估的一条）
+  · 编译固件要联网：拉上游代码 + 自动下载组件（managed_components/）
+  · 国内直连 github.com 大概率超时 ⇒ 先备好代理，或按 1.1 用 codeload 下 tarball
+  · 服务器侧要能访问你选的大模型 / TTS 服务
+
+三个仓库（都要先拿到本地）
+  · 本项目的包（含 firmware/ server/ 等目录，下文所有 cp 的“源”都来自它）：
+        https://github.com/Michae1o/fairy-stackchan
+  · 上游固件（要把本包覆盖到它上面）：https://github.com/78/xiaozhi-esp32
+  · 上游服务器（同理）：https://github.com/xinnan-tech/xiaozhi-esp32-server
+
+时间 / 空间
+  · 首次编译 10~20 分钟（之后增量 1~3 分钟）
+  · 磁盘：ESP-IDF 本体 + 工具链约 3~5 GB，项目 build/ 约 1~2 GB
+
+★ 两条「不用装」的捷径（先想清楚再动手）
+  · 只想让设备跑起来、不想装工具链 ⇒ 用【免编译固件】，
+    见 firmware-bin/README.md，本节的编译部分整个跳过
+  · 只想改人设 / 音色 / 大模型 ⇒ 完全不用碰固件，只做第 2 节（服务器）
 ```
 
 ---
@@ -84,7 +100,29 @@ git clone https://github.com/78/xiaozhi-esp32.git
 cd xiaozhi-esp32
 ```
 
+> ⚠️ **国内直连 github.com 大概率失败（超时）** —— 两种绕法，任选：
+>
+> ```bash
+> # ① 走代理（你本机有代理时；例：代理在 127.0.0.1:7897）
+> git -c http.proxy=http://127.0.0.1:7897 clone \
+>     https://github.com/78/xiaozhi-esp32.git
+>
+> # ② 用 GitHub 自己的源码打包域名（codeload 一般能直连）
+> curl -L -o xiaozhi-esp32.tar.gz \
+>     https://codeload.github.com/78/xiaozhi-esp32/tar.gz/refs/heads/main
+> tar -xzf xiaozhi-esp32.tar.gz && mv xiaozhi-esp32-main xiaozhi-esp32
+> ```
+>
+> （③ 你也可以自己找一个国内镜像站，但那是第三方，安全性请自行判断。）
+>
+> ★ 注意：**编译时还会自动下载一批组件**（`managed_components/`）和 Python 依赖，
+> 那一步同样要能连外网 —— 卡在不动基本都是网络问题（见 1.6 的报错对照）。
+
 ### 1.2 把本项目的改动覆盖到上游（**5 条命令，缺一不可**）
+
+> **前提**：下面命令里的 `firmware/...` 指的是【本项目包】里的目录，**不是上游**。
+> 先 `cd` 到你自己放本项目的位置（把示例路径换成你的实际路径）：
+> `cd /path/to/opensource` ⇒ 例如 `cd ~/fairy-stackchan`。
 
 ```bash
 cd /path/to/opensource
@@ -413,17 +451,66 @@ std::string Ota::GetCheckVersionUrl() {
 
 ### 1.6 编译 & 烧录
 
-```bash
-cd xiaozhi-esp32
-idf.py set-target esp32s3
-idf.py build
-idf.py -p <你的串口> flash
+**开始之前（前提 —— 缺一条都会卡住）**
+
+```text
+□ 1.1 ~ 1.5 都做完了：上游已拉下来、本包已覆盖（5 条 cp）、板卡已选对、
+   main/CMakeLists.txt 已追加、config.json 里已填好服务器地址（走方式 A 时）
+□ ESP-IDF 已装好，并且【在同一个终端里 export 过】（否则 idf.py 不存在）
+□ 设备通电、数据线连着电脑，且知道它在哪个串口：
+      Windows → 设备管理器 → 端口(COM 和 LPT) → 形如 COM3
+      Linux   → ls /dev/ttyUSB*        macOS → ls /dev/cu.*
+□ 网络通（编译时会自动下组件）；国内先配好代理
 ```
 
-> Windows 上串口形如 `COM3`，Linux/macOS 形如 `/dev/ttyUSB0` / `/dev/cu.usbserial-*`
->
-> **进下载模式**：多数 StackChan 需要**按住复位键约 3 秒**直到内部 LED 变色，
-> 或按住 BOOT 键再按一下 RST。
+**① 装工具链（只装一次）** —— ESP-IDF **v6.1**（本项目实测的版本）
+
+```bash
+# Linux / macOS
+mkdir -p ~/esp && cd ~/esp
+git clone -b v6.1 --recursive https://github.com/espressif/esp-idf.git
+cd esp-idf && ./install.sh esp32s3 && . ./export.sh
+```
+
+> Windows 用**官方安装器**最省事（自带 Python / Git / 驱动）：
+> <https://docs.espressif.com/projects/esp-idf/zh_CN/v6.1/esp32s3/get-started/index.html>
+> 装完先跑一次 `export.bat`，再开命令行。
+
+**② 配置 → 编译 → 烧录（★ 按这个顺序，别跳步）**
+
+```bash
+cd xiaozhi-esp32
+idf.py set-target esp32s3      # 生成 sdkconfig（会读 sdkconfig.defaults）
+idf.py reconfigure             # ★ 改过 config.json / sdkconfig.defaults 就必须再跑
+idf.py build                   # 首次 10~20 分钟（增量 1~3 分钟）
+idf.py -p COM3 flash           # 烧进设备，约 1 分钟
+idf.py -p COM3 monitor         # 看串口日志；退出按 Ctrl + ]
+```
+
+**每步「看到什么」才算过**
+
+```text
+set-target   → Target set to 'esp32s3'
+reconfigure  → -- Configuring done
+build        → 结尾 Project build complete.，且 build/ 下生成了 xiaozhi.bin
+flash        → Hash of data verified. / Leaving... Hard resetting via RTS pin
+monitor      → WS: Connecting to ws://<你的服务器IP>:8000/...   ← 这才是连上了
+```
+
+> ★ 产物都在 `build/`：`xiaozhi.bin`（应用本体）、`partition-table.bin`、bootloader。
+> 想把它们合成**一个整机 bin**（方便给别人刷）用 `idf.py merge-bin`。
+> ★ `idf.py flash` 会**自动**让设备进下载模式，**不用手动按任何键**。
+> 看不到串口时：先换一根**数据线**、换个 USB 口；仍不行装 M5Stack 官网的 USB 驱动。
+> ⚠️ **顺序反了会怎样**：先 `build` 再改 `config.json` ⇒ 改动**不会进固件**，
+> 必须 `reconfigure` 后重编 —— 这是「我明明改了却没生效」最常见的原因。
+
+**③ 设备端确认**
+
+```text
+屏幕换成 Fairy（或你设的）皮肤；对它说话是人设语气；
+服务器控制台能看到设备上线 ⇒ 就成功了。
+没成功 ⇒ 先看上面的报错对照，再看第 4 节「常见问题」。
+```
 
 #### ⚠️ 编译报 "app partition is too small" 怎么办
 
@@ -453,7 +540,28 @@ idf.py -p <你的串口> flash
 
 > ✅ **本项目的发布者已用「干净上游 + 把本包覆盖上去」的方式实测编译通过**
 > （2026-09-19，ESP-IDF v6.1）。
-> 如果你的编译报 `undefined reference`，**99% 是漏了 1.3 那一步**。
+
+#### ⚠️ 常见报错对照
+
+```text
+idf.py: command not found
+  ⇒ 没跑环境脚本。先 . ./export.sh（Windows：export.bat），再开命令行
+
+undefined reference to `XXX'
+  ⇒ 99% 是漏了 1.4（没把 CMakeLists.append.txt 贴进 main/CMakeLists.txt）；
+     也和 1.3（板卡没选对）有关 ⇒ 两个都回去检查一遍
+
+串口打不开 / 一直连不上
+  ⇒ 端口被占用：关掉串口监视器 / M5Burner / Arduino / 其他串口工具
+  ⇒ 再确认用的是【数据线】（不是只能充电的线），或换个 USB 口
+
+卡在下载不动（Cloning into ... / pip install ...）
+  ⇒ 网络问题：组件和 Python 依赖要从外网拉 ⇒ 配好代理再试，
+     还不行就删掉 build/ 重新编
+
+app partition is too small
+  ⇒ 见下面一节（分区表）
+```
 
 ---
 
