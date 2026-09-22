@@ -552,7 +552,14 @@ monitor      → WS: Connecting to ws://<你的服务器IP>:8000/...   ← 这�
 ```
 
 > ★ 产物都在 `build/`：`xiaozhi.bin`（应用本体）、`partition-table.bin`、bootloader。
-> 想把它们合成**一个整机 bin**（方便给别人刷）用 `idf.py merge-bin`。
+> 想把它们合成**一个整机 bin**（方便给别人刷）用 `idf.py merge-bin`
+> ⇒ 产物在 `build/merged-binary.bin`。
+> ⛔ **别写成 `-o build/merged-binary.bin`** —— idf.py 是在 `build/` 目录里
+> 执行 esptool 的，那个路径会变成 `build/build/...`，直接报
+> `FileNotFoundError: build/merged-binary.bin`。要指定输出就写**裸文件名**：
+> `idf.py merge-bin -o my-firmware.bin`。
+>
+> ★ 编完记得校验：`python3 tools/verify_artifact.py build/merged-binary.bin`
 > ★ `idf.py flash` 会**自动**让设备进下载模式，**不用手动按任何键**。
 > 看不到串口时：先换一根**数据线**、换个 USB 口；仍不行装 M5Stack 官网的 USB 驱动。
 > ⚠️ **顺序反了会怎样**：先 `build` 再改 `config.json` ⇒ 改动**不会进固件**，

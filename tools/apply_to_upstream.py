@@ -343,7 +343,9 @@ def _next_steps():
     idf.py -p <串口> flash
     idf.py -p <串口> monitor
 
-  ★ 想合成一个整机 bin（给别人刷）：idf.py merge-bin -o build/merged-binary.bin
+  ★ 想合成一个整机 bin（给别人刷）：idf.py merge-bin
+     （⛔ 不要写成 -o build/xxx.bin —— idf.py 是在 build/ 里执行的，
+       那样会变成 build/build/xxx.bin 直接报错；要指定就用裸文件名）
   ★ 服务器地址：本仓库不写死，用设备配网页填或语音说（见 INSTALL.md 1.5）
 ────────────────────────────────────────────────────────────────""")
 
