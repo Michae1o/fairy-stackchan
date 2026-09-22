@@ -63,10 +63,13 @@
 
 ```bash
 git clone <本仓库>
-python3 tools/make_face.py --out fairy-assets              # ① 生成表情素材
-python3 tools/apply_to_upstream.py <上游 xiaozhi-esp32>    # ② 把固件改动打上去
-python3 tools/apply_to_server.py   <上游 xiaozhi-server>   # ③ 把服务器改动打上去
+python3 -m pip install pillow                              # ① 生成素材要用（★ 装进你正在用的那个 python）
+python3 tools/make_face.py --out fairy-assets              # ② 生成表情素材
+python3 tools/apply_to_upstream.py <上游 xiaozhi-esp32>    # ③ 把固件改动打上去
+python3 tools/apply_to_server.py   <上游 xiaozhi-server>   # ④ 把服务器改动打上去
 ```
+
+（想一条命令把这些 + 编译都跑一遍：`bash tools/repro_all.sh --all`，见下方「给 AI Agent 的步骤」。）
 
 两个脚本**幂等**（重复跑只会说「已存在，跳过」），改完照常 `idf.py build flash`。
 
@@ -115,6 +118,9 @@ python3 tools/apply_to_server.py   <上游 xiaozhi-server>   # ③ 把服务器�
 4. 编译前用 **`python3 tools/verify_artifact.py --gif-dir fairy-assets`** 验素材规格
 5. 编译后用 **`python3 tools/verify_artifact.py build/merged-binary.bin`** 验产物
    （会告出：双唤醒词在不在、两个 MCP 工具在不在、有没有泄漏私货 IP、内嵌了几张 GIF）
+6. ★ **想省事就一条命令**：`bash tools/repro_all.sh --all`
+   —— 它把上面 2~5 步（含编译）全跑一遍并直接打印判据，日志留在 `./repro-work/`
+   （`--no-build` 跳过编译、`--firmware`/`--server` 只跑一条线；Windows 用 WSL / Git Bash）
 
 ---
 

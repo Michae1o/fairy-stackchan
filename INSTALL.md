@@ -25,6 +25,7 @@
 |---|---|---|
 | **ESP-IDF** | **v6.1**（本项目实测版本；v5.x 理论可行但未测） | 编译固件 |
 | Python | 3.10+ | 跑 `tools/` 里的脚本 |
+| **Pillow** | 任意近期版本（`python3 -m pip install pillow`） | **生成表情素材（`make_face.py`）要用**。★ 装进**你用来跑脚本的那个 python**：激活 ESP‑IDF 之后 `python` 是 IDF 自带环境，和系统那个不是同一个 |
 | **esptool** | **v5**（`python -m esptool` 能跑） | 烧录（命令行方式） |
 | GPT‑SoVITS | 任意近期版本 | 音色（可选，见 §1.5） |
 
@@ -78,6 +79,15 @@ curl -L -o xiaozhi-esp32.tar.gz https://codeload.github.com/78/xiaozhi-esp32/tar
 >
 > ★ 原则：**先跑通，再换件** —— 先用上游默认件把整条链路跑通，
 > 再逐个换成自己的（ASR / LLM / TTS），出问题才好定位。
+>
+> ★★ **想先看「这套东西在我机器上到底跑不跑得起来」？** 一条命令：
+> ```bash
+> bash tools/repro_all.sh --all            # 下载全新上游 → 打两边改动 → 生成素材
+>                                          # → 编译固件 → 起服务器验 /admin → 打印判据
+> bash tools/repro_all.sh --all --no-build # 同上但不编译（省十几分钟）
+> ```
+> 它会**只用本仓库的文件**去改一份全新上游，跑完打印「哪条判据过、哪条没过」，
+> 日志全留在工作目录（默认 `./repro-work`）。Windows 请在 WSL 或 Git Bash 里跑。
 
 **线一：服务器（先做，不碰设备）**
 
@@ -333,11 +343,20 @@ python3 tools/apply_to_upstream.py <上游 xiaozhi-esp32 目录>
 
 ```bash
 # ① 用代码生成（推荐，零版权风险；一条命令）
+python3 -m pip install pillow        # ★ 只第一次要：make_face.py 画图要用它
 python3 tools/make_face.py --out fairy-assets
 python3 tools/verify_artifact.py --gif-dir fairy-assets     # 先验规格，再往下走
 
 # ② 自己画 / ③ 用现成素材 ⇒ 规格要求见 fairy-assets/README.md 与 firmware/README.md
 ```
+
+★ **注意 Pillow 装在哪**：装进**你正在用的那个 python**。
+如果你先激活了 ESP‑IDF（`export.sh` / 开始菜单的 IDF 终端），那 `python` 就是
+**IDF 自带的环境**（`…/.espressif/python_env/…/bin/python3`），和系统的 `python3` 不是一个 ——
+在哪个环境里跑脚本，就 `python -m pip install pillow` 装到那个环境里。
+
+（没装 Pillow 时 `make_face.py` 会直接告诉你「需要 Pillow：pip install pillow」，
+装上重跑即可；不想装就用 ②/③ 两条路。）
 
 素材规格（`make_face.py` 生成的就是这个规格）：
 
@@ -586,6 +605,7 @@ python -m esptool --chip esp32s3 -p <串口> -b 460800 write-flash 0x0 factory-b
 | 现象 | 真因 | 怎么办 |
 |---|---|---|
 | `idf.py: command not found` | ESP‑IDF 环境没装好 / 没开新终端 | 重开终端，跑 IDF 的 `export.ps1`（或快捷方式）后再试 |
+| `make_face.py` 报「需要 Pillow：pip install pillow」 | 这个 python 没装 Pillow（★ 常见：装到系统 python 了，但跑脚本的是激活后的 IDF 环境） | **在跑脚本的那个环境里**装：`python -m pip install pillow`（或改用自己画好的素材，`--gifs` 指过去） |
 | 起服务器报 `FileNotFoundError: 找不到 data/.config.yaml` | 上游**必须**有这个文件 | `mkdir data` + `cp config.yaml data/.config.yaml`，之后改这一份（§1.3） |
 | 起服务器报 `Could not find Opus library` | conda 环境没激活 ⇒ `Library\bin` 不在 PATH（Windows 常见） | 先 `conda activate <环境>` 再起；或把 `<conda环境>\Library\bin` 加进 PATH |
 | 启动日志「配置错误: LLM 的 API key 未设置」 | 大模型那段没填/填错字段名 | 改 `data/.config.yaml` 的 LLM 段（§1.3） |
