@@ -63,21 +63,27 @@ curl -L -o xiaozhi-esp32.tar.gz https://codeload.github.com/78/xiaozhi-esp32/tar
 > ⚠️ 文档里凡是写 `xiaozhi-esp32/...` 的路径，都指**上游固件**；
 > 写 `tools/...`、`firmware/...` 的，指**本仓库**。先 `cd` 到你 clone 的本仓库。
 
-**★ 本包验证于哪个上游版本（想知道「照哪份上游做的」看这里）**
+**★ 本包是按哪份上游做的（两个版本，别混在一起）**
 
-| 上游 | 验证时用的版本 | 提交时间 |
-|---|---|---|
-| 固件 `78/xiaozhi-esp32` | `main` = **`4632dc51f`** | 2026-09-20 |
-| 服务器 `xinnan-tech/xiaozhi-esp32-server` | `main` = **`788f5301f`** | 2026-09-21 |
-| **ESP‑IDF** | **v6.1** | — |
+| 用途 | 上游 | 版本 | 日期 |
+|---|---|---|---|
+| ★★ **作者本人设备实测过的**（要 100% 复现就用这个） | 固件 `78/xiaozhi-esp32` | **`5d54beb7`** | 2026-09-15 |
+| | 服务器 `xinnan-tech/xiaozhi-esp32-server` | **`4745186c`** | 2026-09-17 |
+| 本包改动的**编译验证**基线（干净上游编过、**无真机**） | 固件 | **`4632dc51f`** | 2026-09-20 |
+| | 服务器 | **`788f5301f`** | 2026-09-21 |
+| **ESP‑IDF** | | **v6.1** | — |
 
-本包的补丁是**按上面这些版本的文件内容**对齐的（脚本逐条核对锚点后才会改）。
-想稳稳复现，就取这几个版本，而不是「今天的 main」：
+两行的差别很小：固件那两版之间上游只多了一个测试文件（`scripts/tests/test_ogg_demuxer.py`）；
+服务器那两版之间文件清单上只多出 5 个 `tests/test_*.py`。**代码本体基本一致。**
+⇒ 本包的补丁在这两代上都打得进去（脚本逐条核对锚点，打不上会带文件名报出来）。
+
+**钉住版本的取法**（把 `<sha>` 换成本表里的值）
 
 ```bash
-# 固件（把 sha 换成本表里的值即可钉住版本）
-curl -L -o xiaozhi-esp32.tar.gz https://codeload.github.com/78/xiaozhi-esp32/tar.gz/4632dc51f
-tar -xzf xiaozhi-esp32.tar.gz          # 解出来是 xiaozhi-esp32-<sha>/ 目录
+# 固件
+curl -L -o xiaozhi-esp32.tar.gz https://codeload.github.com/78/xiaozhi-esp32/tar.gz/5d54beb7
+tar -xzf xiaozhi-esp32.tar.gz          # 解出来是 xiaozhi-esp32-5d54beb7... 目录
+# 服务器同理：https://codeload.github.com/xinnan-tech/xiaozhi-esp32-server/tar.gz/4745186c
 ```
 
 **上游更新了怎么办**（两条路，任选）
@@ -85,9 +91,9 @@ tar -xzf xiaozhi-esp32.tar.gz          # 解出来是 xiaozhi-esp32-<sha>/ 目�
 - **想用最新的 main**：照常跑 `tools/apply_to_upstream.py` / `apply_to_server.py`。
   它们会逐条报结果 —— 打不上的那几条会带着文件名列出来，按报错去对
   （要改的还是那几处，位置见 §2.2 的 `main/CMakeLists.txt` 与 §1.2 的服务器锚点）。
-- **只想稳**：就用上表那个版本，别跟最新 main。
+- **只想稳**：就用上表 ★★ 那一行（作者实测过的），别跟最新 main。
 
-> ℹ️ 本包自己的内容版本：`main` = `7bfcb2e8`（2026-09-22，含控制台截图那次提交）。
+> ℹ️ 本包自己的版本 = 仓库 `main` 的最新提交（本页 2026-09-22 最后更新）。
 > 上游哪天再更新，本表会跟着更新；你也可以照上面的 sha 自行对照。
 
 ### 0.6 两条捷径（不做也行）
