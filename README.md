@@ -73,6 +73,10 @@ python3 tools/apply_to_server.py   <上游 xiaozhi-server>   # ④ 把服务器�
 
 两个脚本**幂等**（重复跑只会说「已存在，跳过」），改完照常 `idf.py build flash`。
 
+> ★ **本包是按哪份上游做的**：固件上游 `78/xiaozhi-esp32` = **`4632dc51f`**（2026‑09‑20）、
+> 服务器上游 `xinnan-tech/xiaozhi-esp32-server` = **`788f5301f`**（2026‑09‑21）。
+> 要稳稳复现就取这两个版本（取法 + 上游更新了怎么办 ⇒ `INSTALL.md` §0.5）。
+
 ---
 
 ## 仓库地图

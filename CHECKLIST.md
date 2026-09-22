@@ -139,6 +139,6 @@ server:
 
 ```text
 甲 Git LFS        git lfs track "*.ckpt" "*.pth"（免费 1GB 存储/1GB 月流量；别人 clone 要装 lfs）
-乙 Releases（推荐）仓库只放代码文档，权重 zip 传 Releases（单文件限 2GB），不占 git 配额
+乙 Releases：仓库只放代码文档，权重 zip 传 Releases（单文件限 2GB），不占 git 配额
 ⚠️ 无论哪种，先确认音色版权（见 CREDITS.md）
 ```

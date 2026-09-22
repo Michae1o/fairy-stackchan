@@ -63,6 +63,33 @@ curl -L -o xiaozhi-esp32.tar.gz https://codeload.github.com/78/xiaozhi-esp32/tar
 > ⚠️ 文档里凡是写 `xiaozhi-esp32/...` 的路径，都指**上游固件**；
 > 写 `tools/...`、`firmware/...` 的，指**本仓库**。先 `cd` 到你 clone 的本仓库。
 
+**★ 本包验证于哪个上游版本（想知道「照哪份上游做的」看这里）**
+
+| 上游 | 验证时用的版本 | 提交时间 |
+|---|---|---|
+| 固件 `78/xiaozhi-esp32` | `main` = **`4632dc51f`** | 2026-09-20 |
+| 服务器 `xinnan-tech/xiaozhi-esp32-server` | `main` = **`788f5301f`** | 2026-09-21 |
+| **ESP‑IDF** | **v6.1** | — |
+
+本包的补丁是**按上面这些版本的文件内容**对齐的（脚本逐条核对锚点后才会改）。
+想稳稳复现，就取这几个版本，而不是「今天的 main」：
+
+```bash
+# 固件（把 sha 换成本表里的值即可钉住版本）
+curl -L -o xiaozhi-esp32.tar.gz https://codeload.github.com/78/xiaozhi-esp32/tar.gz/4632dc51f
+tar -xzf xiaozhi-esp32.tar.gz          # 解出来是 xiaozhi-esp32-<sha>/ 目录
+```
+
+**上游更新了怎么办**（两条路，任选）
+
+- **想用最新的 main**：照常跑 `tools/apply_to_upstream.py` / `apply_to_server.py`。
+  它们会逐条报结果 —— 打不上的那几条会带着文件名列出来，按报错去对
+  （要改的还是那几处，位置见 §2.2 的 `main/CMakeLists.txt` 与 §1.2 的服务器锚点）。
+- **只想稳**：就用上表那个版本，别跟最新 main。
+
+> ℹ️ 本包自己的内容版本：`main` = `7bfcb2e8`（2026-09-22，含控制台截图那次提交）。
+> 上游哪天再更新，本表会跟着更新；你也可以照上面的 sha 自行对照。
+
 ### 0.6 两条捷径（不做也行）
 
 - 不想自己画表情 ⇒ 用 `tools/make_face.py` 一条命令生成（§2.3）
@@ -284,7 +311,7 @@ python3 tools/test_server_e2e.py --audio <一段 5~10 秒人声 wav> \
 
 本仓库**不带**参考音频和微调权重（音频版权属原声者；权重是大文件）。
 
-- **零样本克隆（推荐，不用训练）**：3~10 秒干净人声当参考，起 GPT‑SoVITS 的 API（默认 9880），
+- **零样本克隆（不用训练）**：3~10 秒干净人声当参考，起 GPT‑SoVITS 的 API（默认 9880），
   服务器 §1.3 指向它即可。参考音频怎么录/怎么切、两条路的取舍 ⇒ [`voice-package/README.md`](voice-package/README.md)
 - **微调（进阶）**：要训就用你自己的数据集；本项目的做法与参数也在同一份文档里
 - 服务器侧还有一层 **Fairy 语气后处理**（暖度/削尖/降调/语速），
@@ -342,7 +369,7 @@ python3 tools/apply_to_upstream.py <上游 xiaozhi-esp32 目录>
 **本仓库不带 GIF**（版权原因）。三种拿法：
 
 ```bash
-# ① 用代码生成（推荐，零版权风险；一条命令）
+# ① 用代码生成（零版权风险；一条命令）
 python3 -m pip install pillow        # ★ 只第一次要：make_face.py 画图要用它
 python3 tools/make_face.py --out fairy-assets
 python3 tools/verify_artifact.py --gif-dir fairy-assets     # 先验规格，再往下走
@@ -471,7 +498,7 @@ Windows：设备管理器 → 端口(COM 和 LPT) ⇒ 形如 「USB 串行设备
 Linux/macOS：ls /dev/ttyACM* /dev/cu.usbmodem*
 ```
 
-**方式一：`idf.py`（最省事）**
+**方式一：`idf.py`**
 
 ```bash
 idf.py -p <串口> flash         # 判据：Hash of data verified.
