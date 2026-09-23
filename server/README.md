@@ -74,7 +74,8 @@ A. main/xiaozhi-server/core/http_server.py     （3 处 ⇒ 控制台才有 /adm
         if self.admin_handler is not None:
             self.admin_handler.register(app)
 
-B. main/xiaozhi-server/core/connection.py      （3 处 ⇒ 控制台才看得到设备、能下发）
+B. main/xiaozhi-server/core/connection.py      （5 处）
+   ── 前 3 处 ⇒ 控制台才看得到设备、能下发 ──
    ① import 区（from collections import deque 之后）:
         from core.api import device_registry
    ② async def handle_connection(...) 第一行（try: 之前）:
@@ -87,6 +88,14 @@ B. main/xiaozhi-server/core/connection.py      （3 处 ⇒ 控制台才看得�
             device_registry.unregister(self)
         except Exception:
             pass
+   ── 另外 2 处（控制台状态灯 + 声纹免重启）──
+   ④ 对话开始处（self.dialogue.put(Message(role="user", content=query)) 之后）:
+        from core.utils import chat_log ; chat_log.set_state("thinking", "llm")
+   ⑤ _initialize_voiceprint() 里（voiceprint_config = self.config.get("voiceprint", {}) 之后）:
+        ★ 改成【实时读 data/.config.yaml 的 voiceprint 段】——
+          否则控制台里增删说话人后，必须重启服务器才生效。
+          改完 ⇒ 设备【下次对话】就认新名单（该函数每个连接都会走一次）。
+          一键脚本按锚点自动插入（锚点找不到会报错，不会静默跳过）。
 ```
 
 **⇒ 一键做 + 自动自检**（幂等，锚点找不到会报错）：
@@ -171,3 +180,89 @@ self.servo.set_angles  →  字典 key 实际是  self_servo_set_angles
   - ⇒ 只在内网用，**不要把这个端口映射到公网**；
     需要外网访问请用【反向代理 + HTTP 基础认证】或 VPN
 - 上游配置里的 `remotes.enabled = true` 会**放行全部来源**（含公网），慎用
+
+---
+
+## 声纹识别（可选功能）
+
+让设备认得出「**是谁在说话**」：每次对话时服务器把这段音频拿去和已注册的声纹比对，
+认出就把说话人名字带进上下文（Fairy 就知道这句是主人在说、还是别人）。
+
+### 需要什么
+
+一个**单独的声纹识别服务**（上游没有，要另外跑）：
+
+- 用配套的开源项目 [`xinnan-tech/voiceprint-api`](https://github.com/xinnan-tech/voiceprint-api)
+  （阿里 3D-Speaker 模型，**Apache-2.0**），跑在 **8005** 端口。
+- ★ 本项目对它做了 **3 处改造：MySQL → SQLite**（省掉一个常驻数据库服务）。
+  补丁在 [`third-party-patches/voiceprint-api-sqlite/`](third-party-patches/voiceprint-api-sqlite/)，
+  按那份 README 覆盖过去即可。
+  ⚠ **不覆盖的话，控制台的「已注册」状态会读不到** ——
+  控制台是**直接读 SQLite 库文件**的（原版存 MySQL，读不到）。
+- 首次启动会下载模型（约几百 MB），之后走本地缓存。
+
+### 怎么接上
+
+**第 1 步：跑起声纹服务**（假设放在 `<项目根>/voiceprint-api/`）
+
+```bash
+cd voiceprint-api
+python -m venv venv
+venv/Scripts/pip install -r requirements.txt      # Windows；Linux 用 venv/bin/pip
+python app.py                                     # 首次下载模型，之后监听 0.0.0.0:8005
+```
+
+判据：`GET http://127.0.0.1:8005/voiceprint/health?key=<token>` 返回 `"status":"healthy"`。
+（token 在它自己的 `data/.voiceprint.yaml` 里 `server.authorization`，首次启动自动生成。）
+
+**第 2 步：在服务器配置里打开声纹**
+
+编辑 `data/.config.yaml`（★ 是 **data/** 下那份，它会覆盖根目录的同名项）：
+
+```yaml
+voiceprint:
+  # ★ 这里只需要它的 host + key —— 服务器会自己拼 /voiceprint/identify
+  url: http://127.0.0.1:8005/voiceprint/health?key=<第 1 步那个 token>
+  speakers:                      # 候选说话人： "id,名字,描述"
+    - me,你的名字,一句话描述你自己
+  similarity_threshold: 0.4      # 低于阈值就报「未知说话人」
+```
+
+**第 3 步：注册声纹**
+
+打开控制台 `http://<服务器IP>:8003/admin` → 侧栏 **🗣️ 声纹**：
+
+```text
+① 「➕ 添加说话人」填 ID（英文，如 me）/ 名字 / 描述 → 点「添加」
+② 「🎙️ 录音注册」选这个人 → 点「开始录音（6 秒）」→ 让本人对着麦克风正常说 6 秒
+③ 列表里那个人从「未注册」变「已注册」 ⇒ 成了
+```
+
+> ⚠️ **麦克风只在 `http://127.0.0.1:8003/admin`（本机 localhost）或 https 下可用** ——
+> 这是浏览器的安全策略（局域网 IP 下浏览器根本不暴露麦克风接口）。
+> ⇒ 录音这一步要在**服务器那台电脑上**用 localhost 打开；
+> **加人 / 删除 / 看列表不受这个限制**，手机也能做。
+> 也可以直接在服务器上跑命令行：`python tools/voiceprint-register.py`
+
+**第 4 步：验证**
+
+让本人问设备「你知道我是谁吗」。服务器日志里会出现：
+
+```text
+声纹识别耗时: 0.2xx s
+```
+
+控制台的对话记录里，每条会多一个 `speaker` 字段
+（认出来是名字，没认出来是「未知说话人」）。
+
+### 实现要点（改了哪些）
+
+| 文件 | 改了什么 |
+|---|---|
+| `core/connection.py` | `_initialize_voiceprint()` 里新增第 ⑤ 处接线：**实时读**配置的 `voiceprint` 段（否则控制台加完人必须重启服务器） |
+| `core/api/admin_handler.py` | 5 个接口：列表 / 注册 / 删除声纹 + 增删说话人；注册时用 **ffmpeg** 把浏览器录的 webm 转成 16k wav 再转给声纹服务 |
+| `core/api/admin_page.html` | 「🗣️ 声纹」页签（列表 / 添加 / 录音 / 删除），**每一步都给出成功或失败的具体原因**，不会点了没反应 |
+| `third-party-patches/voiceprint-api-sqlite/` | 对声纹服务本身的 3 文件改造（MySQL → SQLite） |
+
+> ★ **没改上游的声纹客户端** —— `core/utils/voiceprint_provider.py` 是上游自带的，
+> 本项目只是把配置填上、并把候选名单做成了可以在网页里管理。

@@ -300,6 +300,7 @@ Release 里的 fairy-stackchan-universal.bin **内嵌了 2 个表情动画 GIF**
 | 唤醒词模型「Hi Fairy」 | Espressif esp-sr（Apache-2.0） | 可自由使用 |
 | 唤醒词模型「你好小智」 | Espressif esp-sr（Apache-2.0） | 可自由使用 |
 | 字体 | LVGL / Montserrat（MIT） | 可自由使用 |
+| 声纹识别服务 `voiceprint-api` | [xinnan-tech/voiceprint-api](https://github.com/xinnan-tech/voiceprint-api)（**Apache-2.0**） | ★ 本项目**改了它的存储层**（MySQL → SQLite）。改动文件在 `server/third-party-patches/`，署名义务必看 [`THIRD-PARTY-LICENSES.md`](THIRD-PARTY-LICENSES.md) §5-2 |
 
 ---
 

@@ -88,6 +88,28 @@ CN_THINK_ADD = """            # ★ 通知 Web 控制台：开始思考（眼睛
                 pass
 """
 
+# connection.py：声纹配置【实时读文件】
+# 控制台「声纹」页可以随时增删说话人，而 self.config 是进程启动时加载并缓存的
+# ⇒ 不实时读的话，用户加完人必须重启服务器。
+# 这个函数【每个连接都会走一次】⇒ 改完配置，设备下次对话即生效。
+CN_VP_ANCHOR = ('        try:\n'
+                '            voiceprint_config = self.config.get("voiceprint", {})\n')
+CN_VP_ADD = '''            # ★ 实时读 data/.config.yaml 里的 voiceprint 段（控制台改完不用重启）
+            try:
+                import yaml as _yaml
+                _vp_cfg = os.path.join(
+                    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                    "data", ".config.yaml")
+                if os.path.isfile(_vp_cfg):
+                    with open(_vp_cfg, encoding="utf-8") as _f:
+                        _live = (_yaml.safe_load(_f.read()) or {}).get("voiceprint")
+                    if _live:
+                        voiceprint_config = _live
+            except Exception as _e:
+                self.logger.bind(tag=TAG).warning(
+                    f"读取实时 voiceprint 配置失败: {_e!r}")
+'''
+
 
 def say(msg=""):
     print(msg, flush=True)
@@ -179,6 +201,9 @@ def main():
     edit(cn, CN_THINK_ANCHOR, CN_THINK_ADD, 'chat_log.set_state("thinking"', dry,
          "对话开始时通知控制台（thinking 状态）")
 
+    edit(cn, CN_VP_ANCHOR, CN_VP_ADD, "读取实时 voiceprint 配置失败", dry,
+         "声纹配置实时读文件（控制台加完人不用重启）")
+
     # ── 自检：接线 + 关键文件是否真的到位 ────────────────────────
     say("\n【自检】核对（下面每一项都必须 ✅，否则功能是坏的）")
     checks = [
@@ -189,6 +214,9 @@ def main():
         (cn, "device_registry.register(self)", "connection: 连接建立时登记"),
         (cn, "device_registry.unregister(self)", "connection: 连接断开时注销"),
         (cn, 'chat_log.set_state("thinking"', "connection: 对话开始通知控制台"),
+        (cn, "读取实时 voiceprint 配置失败", "connection: 声纹配置实时读取（免重启）"),
+        (srv_root / "core" / "api" / "admin_handler.py", "/admin/api/voiceprint",
+         "admin_handler.py（声纹注册/识别接口）"),
         (srv_root / "core" / "utils" / "chat_log.py", "def set_state(", "chat_log.py（控制台对话记录/状态灯）"),
         (srv_root / "core" / "api" / "chat_llm.py", "def chat(", "chat_llm.py（控制台网页对话）"),
         (srv_root / "core" / "api" / "ota_handler.py", "_align_skin", "ota_handler.py（皮肤自动对齐）"),

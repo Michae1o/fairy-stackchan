@@ -340,7 +340,7 @@ server hello ✅ | ASR text ✅ | LLM answer ✅ | TTS frames > 0 ✅
 If it fails, it tells you which link to check (ASR config / LLM key / voice service).
 **Don't go flash firmware with an unverified server** — you'll end up blaming the firmware.
 
-> **How to use the console** (what each of the 8 desktop tabs does, how mobile `/m` differs,
+> **How to use the console** (what each of the 9 desktop tabs does, how mobile `/m` differs,
 > "takes effect live vs needs a restart", FAQ, callable APIs) ⇒ [`CONSOLE.md`](CONSOLE.md) (Chinese)
 
 ### 1.5 Last step of line 1: bring in your own voice (GPT‑SoVITS)
@@ -355,6 +355,22 @@ speaker; weights are big files).
   in the same document
 - The server also has a **Fairy tone post-processing** layer (warmth / de-harshness / pitch drop /
   speed), **all off by default** — turn it on in `gpt_sovits_v2.py` if you want it
+
+### 1.6 Optional: speaker recognition (knows *who* is speaking)
+
+**Not required** — everything works without it, it just can't tell **who** is talking.
+With it, every utterance is matched against registered voiceprints and the speaker's name
+is added to the context.
+
+- Needs a **separate voiceprint service** (not in upstream):
+  [`xinnan-tech/voiceprint-api`](https://github.com/xinnan-tech/voiceprint-api) (3D-Speaker) on port **8005**.
+  ★ This project patches it from **MySQL to SQLite**; the patch lives in `server/third-party-patches/`
+  (**without it, every entry in the console shows "not enrolled"**)
+- Put `voiceprint.url` (with the key) + `speakers` (format `"id,name,description"`) into `data/.config.yaml`
+- Then use the console's **🗣️** tab: "add speaker" + "record 6 seconds"
+
+★ **Full steps: the "Speaker recognition" section of [`server/README.md`](server/README.md)** (Chinese)
+— it includes a criterion for each step, FAQ, and why the microphone only works on localhost.
 
 ---
 

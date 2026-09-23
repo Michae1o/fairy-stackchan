@@ -51,10 +51,13 @@ or bring your own.
 - **24 emotion names** (23 → `idle.gif`, `thinking` → `thinking.gif`)
 - **Interactions**: head-pat → happy + floating hearts; shake → dizzy spin; idle head-turning (off by default)
 - **Tap the screen** → the status bar shows briefly (WiFi left / battery right, hides after ~3 s)
-- **On-screen menu**: the `☰` at the top right opens a right-side drawer (settings)
 - **Two MCP tools** (so the AI can change the device itself): set the server URL, switch skin
 - **Web console**: desktop `/admin` (status light, hardware toggles, skins, TTS preview, chat in the
-  browser) and mobile `/m` — see [`CONSOLE.md`](CONSOLE.md) (Chinese)
+  browser, **voiceprint management**) and mobile `/m` — see [`CONSOLE.md`](CONSOLE.md) (Chinese)
+- **Speaker recognition (voiceprint)**: every utterance is matched against registered voiceprints,
+  so it knows **who is speaking**; the console's 🗣️ page lets you **add people and enrol them by
+  recording 6 seconds in the browser** (uses the self-hosted
+  [`voiceprint-api`](https://github.com/xinnan-tech/voiceprint-api) — see [`server/README.md`](server/README.md))
 - **Voice**: GPT‑SoVITS zero-shot cloning (with Fairy-style tone post-processing on the server), no training needed
 - **Switch skin** three ways: short-press the power button / ask by voice / click the card in the console
 
@@ -120,7 +123,7 @@ after that, build and flash as usual with `idf.py build flash`.
 | [`firmware/`](firmware/README.md) | **All** firmware changes (board layer / avatar & decorators / local components / display layer) + `CMakeLists.append.txt` — Chinese |
 | [`firmware-bin/`](firmware-bin/README.md) | Prebuilt firmware + three flashing methods + first-connection setup + troubleshooting — Chinese |
 | [`server/`](server/README.md) | **All** server-side changes (10 files, laid out mirroring the upstream tree) — Chinese |
-| [`tools/`](tools/) | 6 scripts: generate assets / apply firmware changes / apply server changes / verify artifacts / **verify the server link (simulated device)** / **one-command reproduction (`repro_all.sh`)** |
+| [`tools/`](tools/) | 9 scripts: generate assets / apply firmware changes / apply server changes / verify artifacts / **verify the server link (simulated device)** / **one-command reproduction (`repro_all.sh`)** / **voiceprint registration (CLI)** / **voiceprint end-to-end self-test** / **start / restart all services** |
 | [`fairy-assets/`](fairy-assets/README.md) | **Empty directory** — this is where Fairy's emote GIFs go; not shipped (see the README inside) |
 | [`voice-package/`](voice-package/README.md) | Voice: zero-shot cloning / fine-tuning, how to record reference audio — Chinese |
 | [`CREDITS.md`](CREDITS.md) | Sources, licensing, copyright notes for assets and voices |
@@ -132,7 +135,7 @@ after that, build and flash as usual with `idf.py build flash`.
 
 | | Contents |
 |---|---|
-| **Included** | Upstream **changed source** (firmware: board layer / avatar & decorators / local components / display layer; server: 10 files) · 6 tool scripts · docs with parameters and how-to · 1 console UI screenshot (`docs/`) · prebuilt firmware (in Releases) |
+| **Included** | Upstream **changed source** (firmware: board layer / avatar & decorators / local components / display layer; server: 10 files) · 9 tool scripts · docs with parameters and how-to · 1 console UI screenshot (`docs/`) · prebuilt firmware (in Releases) |
 | **Not included** | ★ **The upstream source tree itself** (`main/`, `CMakeLists.txt` — clone upstream for those) · any **character art assets** · reference audio · TTS fine-tune weights · the author's LAN IP / keys / local paths |
 
 For ways to get emote assets, voice and weights, see

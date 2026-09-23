@@ -1147,6 +1147,7 @@ button.mini:disabled{opacity:.5;cursor:default}
       <button data-tab="skin"><span class="ico">🎨</span><span class="t">皮肤</span></button>
       <button data-tab="led"><span class="ico">💡</span><span class="t">灯光</span></button>
       <button data-tab="motor"><span class="ico">🎯</span><span class="t">舵机</span></button>
+      <button data-tab="vp"><span class="ico">🗣️</span><span class="t">声纹</span></button>
       <button data-tab="sys"><span class="ico">⚙️</span><span class="t">系统</span></button>
     </nav>
     <div class="side-foot">
@@ -1686,6 +1687,69 @@ button.mini:disabled{opacity:.5;cursor:default}
       </div>
       <p class="hint">调滑块 → 点<b>转到此角度</b>看效果 → 满意后点
         <b>设为默认角度</b>（存进设备，下次开机就是这个姿势）。</p>
+    </div>
+
+    <!-- ── 声纹（2026-09-22）─────────────────────────────── -->
+    <div id="tab-vp" class="hidden">
+      <h2>声纹</h2>
+      <p class="hint">让 Fairy 认出「是谁在说话」：注册之后，说话人的名字会
+        连同这句话一起交给大模型，它就能知道是你在说。</p>
+      <div class="rnote no">🎙️ <b>录音请用 http://127.0.0.1:8003/admin 打开本页</b>
+        —— 浏览器只在 localhost / https 下才给麦克风权限。
+        用局域网 IP（<你的局域网IP>）打开时麦克风会被拒绝，那种情况请改用
+        根目录的 <b>注册声纹.bat</b>。</div>
+      <div id="vpStatus" class="connbar"></div>
+      <div class="card">
+        <h3>👥 说话人</h3>
+        <div id="vpList" class="hint">加载中…</div>
+      </div>
+      <div class="card">
+        <h3>➕ 添加说话人</h3>
+        <div class="row">
+          <label>ID</label>
+          <input class="mono" id="vpNewId" placeholder="字母/数字，如 mei" style="flex:1">
+        </div>
+        <div class="row">
+          <label>名字</label>
+          <input id="vpNewName" placeholder="如 小明 / 小红" style="flex:1">
+        </div>
+        <div class="row">
+          <label>描述</label>
+          <input id="vpNewDesc" placeholder="如 机器的作者本人（会交给大模型参考）" style="flex:1">
+        </div>
+        <div class="acts">
+          <button class="btn sm" onclick="vpAddSpeaker()">添加</button>
+          <span id="vpAddMsg" class="msg"></span>
+        </div>
+        <p class="hint">ID 是内部标识（定了就别改），名字用来显示。
+          加完后再点下面的「录音注册」录一段，Fairy 才会认得这个人。
+          <b>不用重启服务器</b>，设备下次对话就生效。</p>
+      </div>
+      <div class="card">
+        <h3>🎙️ 录音注册</h3>
+        <div class="row">
+          <label>说话人</label>
+          <select id="vpSel" class="modesel" style="flex:1"></select>
+        </div>
+        <div class="acts">
+          <button class="btn sm" id="vpRecBtn" onclick="vpRecord()">开始录音（6 秒）</button>
+          <span id="vpMsg" class="msg"></span>
+        </div>
+        <p class="hint" id="vpRecHint">点按钮后对着麦克风用<b>平常的语速</b>说 6 秒话就行
+          （比如「今天天气不错，我随便说几句给机器人听」）。</p>
+      </div>
+      <div class="card">
+        <h3>🗑️ 删除声纹</h3>
+        <div class="row">
+          <label>说话人</label>
+          <select id="vpDelSel" class="modesel" style="flex:1"></select>
+        </div>
+        <div class="acts">
+          <button class="ghost sm" onclick="vpDelete()">删除该声纹</button>
+          <span id="vpDelMsg" class="msg"></span>
+        </div>
+        <p class="hint">删掉后就不认得这个人了，可以重新录。</p>
+      </div>
     </div>
 
       <div id="tab-sys" class="hidden">
@@ -2770,6 +2834,226 @@ function pickModel(name, which){
       if(el && !el.classList.contains('hidden')) checkDevice(k);
     });
   }, 500);
+
+  // ══════════════════════════════════════════════════════════
+  // ★ 声纹（2026-09-22）：网页录音注册 / 删除
+  //   录音走浏览器 MediaRecorder（得到 webm/opus），服务器收到后
+  //   用 ffmpeg 转 16k 单声道 wav 再交给声纹服务（它只吃 wav）。
+  //   ⚠ getUserMedia 只在【安全上下文】可用：localhost 或 https。
+  //     用局域网 IP 打开时浏览器会拒绝，页面顶部已提示改用 注册声纹.bat。
+  // ══════════════════════════════════════════════════════════
+  // ★ 自包含的提示函数：不要调用外部的 setMsg / toast
+  //   —— 实测 setMsg 在声纹这段代码运行时是 undefined（作用域/加载顺序问题），
+  //      依赖它会直接抛 ReferenceError，表现为「按钮点了毫无反应」。
+  function vpSetMsg(id, s, ok){
+    var e = document.getElementById(id);
+    if(!e) return;
+    e.textContent = s || '';
+    e.style.color = ok === false ? '#ff8080'
+                  : (ok === true ? '#7ee0a0' : '#7ea6c8');
+  }
+
+  window.vpLoad = async function(){
+    var st = document.getElementById('vpStatus');
+    var box = document.getElementById('vpList');
+    if(!st || !box) return;
+    try{
+      var r = await fetch('/admin/api/voiceprint');
+      var d = await r.json();
+      if(!(d && d.ok)){
+        st.className='connbar bad';
+        st.innerHTML='<span class="dot"></span>读取失败：'+((d&&d.error)||'未知');
+        return;
+      }
+      st.className = d.online ? 'connbar ok' : 'connbar bad';
+      st.innerHTML = '<span class="dot"></span>声纹服务 ' + (d.online ? '运行中' : '未启动')
+        + '　说话人 ' + (d.speakers ? d.speakers.length : 0) + ' 个'
+        + '　已注册 ' + (d.registered ? d.registered.length : 0) + ' 个'
+        + (d.online ? '' : '　（双击 启动Fairy.bat 可启动）')
+        + (d.has_token ? '' : '　⚠ 令牌缺失');
+      var rows = '', sel = '', del = '';
+      (d.speakers||[]).forEach(function(sp){
+        var okk = sp.registered;
+        rows += '<div style="margin:6px 0">'
+          + '<b>' + sp.name + '</b> <span class="mono">' + sp.id + '</span> '
+          + (okk ? '<span style="color:#7fdc9f">已注册</span>'
+                 : '<span style="color:#ff9b9b">未注册</span>')
+          + ' <button class="ghost sm" style="padding:1px 8px;font-size:12px" '
+          + 'onclick="vpRemoveSpeaker(\'' + sp.id + '\')">移除</button>'
+          + (sp.desc ? '<br><span class="hint">' + sp.desc + '</span>' : '')
+          + '</div>';
+        sel += '<option value="'+sp.id+'">'+sp.name+'（'+sp.id+'）'
+             + (okk ? ' · 已注册' : '') + '</option>';
+        if(okk) del += '<option value="'+sp.id+'">'+sp.name+'（'+sp.id+'）</option>';
+      });
+      box.innerHTML = rows || '<span class="hint">配置里还没有 voiceprint.speakers</span>';
+      document.getElementById('vpSel').innerHTML = sel
+        || '<option value="">（配置里没有候选说话人）</option>';
+      document.getElementById('vpDelSel').innerHTML = del
+        || '<option value="">（还没有已注册的）</option>';
+
+      // ★ 非安全上下文（局域网 IP 打开）浏览器【根本不暴露】navigator.mediaDevices
+      //   ⇒ 进页面就把录音按钮禁用并说明原因，比"点了才报错"清楚。
+      //   实测 http://<你的局域网IP>:8003 → mediaDevices === undefined
+      var recBtn  = document.getElementById('vpRecBtn');
+      var recHint = document.getElementById('vpRecHint');
+      var canRec  = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+      if(recBtn){
+        recBtn.disabled = !canRec;
+        recBtn.style.opacity = canRec ? '' : '0.45';
+        recBtn.style.cursor = canRec ? '' : 'not-allowed';
+        recBtn.textContent = canRec ? '开始录音（6 秒）' : '录音不可用（此地址）';
+      }
+      if(recHint){
+        recHint.innerHTML = canRec
+          ? '点按钮后对着麦克风用<b>平常的语速</b>说 6 秒话就行（比如「今天天气不错，我随便说几句给机器人听」）。'
+          : '⚠ 当前地址（<b>' + location.host + '</b>）下浏览器不提供麦克风接口 —— '
+            + '本页的查看、删除都正常，<b>只有录音不行</b>。<br>'
+            + '要录音请二选一：①在<b>这台电脑</b>上用 <b>http://127.0.0.1:8003/admin</b> 打开本页；'
+            + '②双击电脑上根目录的 <b>注册声纹.bat</b>。';
+      }
+    }catch(e){
+      st.className='connbar bad';
+      st.innerHTML='<span class="dot"></span>连不上控制台接口';
+    }
+  };
+
+  // ★ 录音注册（2026-09-22 加固版）
+  //   教训：原来把 mr.start() 写在提示语句之前 ⇒ 提示一崩，就【不会停录音、不会上传】，
+  //   用户看到的现象是「只弹了麦克风权限、然后毫无反应」。
+  //   现在：①提示一律先于动作 ②全程 try/catch ③每个分支都写一行反馈到 vpMsg，
+  //   绝不留「点了没反应」的状态。
+  window.vpRecord = async function(){
+    try{
+      var sid = document.getElementById('vpSel').value;
+      if(!sid){ vpSetMsg('vpMsg','先在上面选一个说话人', false); return; }
+      if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+        vpSetMsg('vpMsg','此浏览器/此地址不支持录音（需 localhost 或 https）', false);
+        return;
+      }
+      vpSetMsg('vpMsg','正在申请麦克风权限…');
+      var stream;
+      try{
+        stream = await navigator.mediaDevices.getUserMedia({audio:{
+          channelCount:1, echoCancellation:true, noiseSuppression:true}});
+      }catch(e){
+        vpSetMsg('vpMsg','拿不到麦克风：'+((e&&e.name)||e)+'（必须用 localhost 打开本页）', false);
+        return;
+      }
+      var mr;
+      try{ mr = new MediaRecorder(stream); }
+      catch(e){
+        stream.getTracks().forEach(function(t){t.stop();});
+        vpSetMsg('vpMsg','这个浏览器不支持 MediaRecorder', false);
+        return;
+      }
+
+      var chunks = [];
+      mr.ondataavailable = function(e){ if(e.data && e.data.size) chunks.push(e.data); };
+      mr.onerror = function(e){
+        try{ stream.getTracks().forEach(function(t){t.stop();}); }catch(_){}
+        vpSetMsg('vpMsg','录音出错：'+((e&&e.error&&e.error.name)||e), false);
+      };
+      mr.onstop = async function(){
+        stream.getTracks().forEach(function(t){t.stop();});
+        var blob = new Blob(chunks, {type: mr.mimeType || 'audio/webm'});
+        if(!blob.size){ vpSetMsg('vpMsg','没录到声音，再试一次', false); return; }
+        var kb = Math.round(blob.size/1024);
+        vpSetMsg('vpMsg','录到 '+kb+' KB，上传处理中…');
+        var fd = new FormData();
+        fd.append('speaker_id', sid);
+        fd.append('file', blob, 'record.webm');
+        try{
+          var r = await fetch('/admin/api/voiceprint/register', {method:'POST', body: fd});
+          var d = await r.json();
+          if(d && d.ok){
+            vpSetMsg('vpMsg','✅ 注册成功：'+sid+'（'+kb+' KB）', true);
+            vpLoad();
+          } else {
+            vpSetMsg('vpMsg','❌ 注册失败：'+((d&&d.error)||'未知原因'), false);
+          }
+        }catch(e){ vpSetMsg('vpMsg','❌ 上传失败：'+e, false); }
+      };
+
+      // ★ 顺序要紧：先给提示，再开始录
+      vpSetMsg('vpMsg','● 录音中… 请对着麦克风说话（6 秒）');
+      mr.start();
+      var left = 6;
+      var tick = setInterval(function(){
+        left--;
+        vpSetMsg('vpMsg','● 录音中… 还剩 '+left+' 秒');
+      }, 1000);
+      setTimeout(function(){
+        clearInterval(tick);
+        if(mr.state !== 'inactive'){
+          vpSetMsg('vpMsg','录音结束，正在上传…');
+          mr.stop();
+        } else {
+          vpSetMsg('vpMsg','录音已停止但没拿到数据，再试一次', false);
+        }
+      }, 6000);
+    }catch(e){
+      // ★ 兜底：任何没预料到的异常也必须显示出来，绝不静默失败
+      vpSetMsg('vpMsg','❌ 录音流程异常：'+e, false);
+    }
+  };
+
+  window.vpDelete = async function(){
+    var sid = document.getElementById('vpDelSel').value;
+    if(!sid){ vpSetMsg('vpDelMsg','没有可删除的声纹', false); return; }
+    if(!confirm('确定删除 '+sid+' 的声纹？（可以重新录）')) return;
+    vpSetMsg('vpDelMsg','删除中…');
+    try{
+      var r = await fetch('/admin/api/voiceprint/delete', {method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({id: sid})});
+      var d = await r.json();
+      if(d && d.ok){ vpSetMsg('vpDelMsg','✅ 已删除：'+sid); vpLoad(); }
+      else { vpSetMsg('vpDelMsg','❌ '+((d&&d.error)||'删除失败'), false); }
+    }catch(e){ vpSetMsg('vpDelMsg','❌ '+e, false); }
+  };
+
+  window.vpAddSpeaker = async function(){
+    var id   = document.getElementById('vpNewId').value.trim();
+    var name = document.getElementById('vpNewName').value.trim();
+    var desc = document.getElementById('vpNewDesc').value.trim();
+    if(!id || !name){ vpSetMsg('vpAddMsg','ID 和名字都要填', false); return; }
+    vpSetMsg('vpAddMsg','保存中…');
+    try{
+      var r = await fetch('/admin/api/voiceprint/speaker/add', {method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({id:id, name:name, desc:desc})});
+      var d = await r.json();
+      if(d && d.ok){
+        vpSetMsg('vpAddMsg','✅ 已添加：'+name+'（'+id+'）');
+        ['vpNewId','vpNewName','vpNewDesc'].forEach(function(k){
+          document.getElementById(k).value = '';
+        });
+        vpLoad();
+        vpSetMsg('vpMsg','下一步：点「开始录音（6 秒）」给 '+name+' 录一段');
+      } else {
+        vpSetMsg('vpAddMsg','❌ '+((d&&d.error)||'添加失败'), false);
+      }
+    }catch(e){ vpSetMsg('vpAddMsg','❌ '+e, false); }
+  };
+
+  window.vpRemoveSpeaker = async function(id){
+    if(!confirm('移除「'+id+'」？（会同时删掉它的声纹，之后可以重新加）')) return;
+    try{
+      var r = await fetch('/admin/api/voiceprint/speaker/remove', {method:'POST',
+        headers:{'Content-Type':'application/json'}, body: JSON.stringify({id:id})});
+      var d = await r.json();
+      if(d && d.ok){ vpLoad(); }
+      else { alert('移除失败：'+((d&&d.error)||'未知')); }
+    }catch(e){ alert('移除失败：'+e); }
+  };
+
+  // 切到「声纹」页时自动加载（tab 切换由 initTabs 管，这里只追加监听）
+  document.addEventListener('click', function(ev){
+    var b = (ev.target && ev.target.closest)
+      ? ev.target.closest('nav button[data-tab]') : null;
+    if(b && b.getAttribute('data-tab') === 'vp') setTimeout(vpLoad, 80);
+  });
 
   // ⑥ 每页保存条：复用 saveAll，但把提示写到本页
   window.savePage = function(tab, andRestart){

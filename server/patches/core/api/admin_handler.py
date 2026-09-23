@@ -51,6 +51,19 @@ PROJECT_ROOT = os.path.abspath(os.path.join(
     SERVER_ROOT, "..", "..", ".."))
 CONFIG_PATH = os.path.join(SERVER_ROOT, "data", ".config.yaml")
 BACKUP_DIR = os.path.join(PROJECT_ROOT, "backup")
+# ★ 声纹识别服务（自建 voiceprint-api，2026-09-22）—— 控制台「声纹」页用
+#   这套方案的"真相"分两处：
+#     · 候选说话人（id,名称,描述）→ 服务器配置 voiceprint.speakers
+#     · 已注册的声纹特征          → voiceprint-api 的 SQLite 库
+#   上游只提供 health/identify/register/delete，【没有"列出已注册"的接口】，
+#   所以这里直接读库 —— 这也是当初把它从 MySQL 改成 SQLite 的附带好处。
+VP_DIR = os.path.join(PROJECT_ROOT, "voiceprint-api")
+VP_DB = os.path.join(VP_DIR, "data", "voiceprints.db")
+VP_CONF = os.path.join(VP_DIR, "data", ".voiceprint.yaml")
+VP_BASE = "http://127.0.0.1:8005"
+# ffmpeg 在 xiaozhi 环境的 Library/bin 下（服务器进程就跑在这个环境里）
+VP_FFMPEG = os.path.abspath(os.path.join(
+    os.path.dirname(sys.executable), "..", "Library", "bin", "ffmpeg.exe"))
 PAGE_PATH = os.path.join(API_DIR, "admin_page.html")
 # ★ 手机端独立 H5 页（/m）—— 与电脑版 admin_page.html 各管各的
 MOBILE_PAGE_PATH = os.path.join(API_DIR, "admin_mobile.html")
@@ -169,7 +182,10 @@ class AdminHandler:
         except OSError:
             return web.Response(status=500, text="页面文件缺失")
         return web.Response(text=html, content_type="text/html",
-                            charset="utf-8")
+                            charset="utf-8",
+                            headers={"Cache-Control": "no-store, must-revalidate",
+                                     "Pragma": "no-cache",
+                                     "Expires": "0"})
 
     # ★ 手机端 H5 独立页（用户要求：「手机 html 适配很烂，写 H5 版本」）
     #   · 路径 /m —— 与电脑版 /admin 完全独立，互不影响
@@ -184,7 +200,10 @@ class AdminHandler:
         except OSError:
             return web.Response(status=500, text="手机页文件缺失")
         return web.Response(text=html, content_type="text/html",
-                            charset="utf-8")
+                            charset="utf-8",
+                            headers={"Cache-Control": "no-store, must-revalidate",
+                                     "Pragma": "no-cache",
+                                     "Expires": "0"})
 
     # ── 读配置 ──────────────────────────────────────────────
 
@@ -1170,6 +1189,291 @@ class AdminHandler:
                 "message": "已保存，但通知设备失败：%r" % e,
             })
 
+    # ══════════════════════════════════════════════════════════
+    # ★ 声纹识别（控制台「声纹」页，2026-09-22）
+    #   注册/删除转发给 voiceprint-api（只有它能提取/比对声纹特征）；
+    #   列出则直接读它的 SQLite 库（上游没有"列出已注册"的接口）。
+    # ══════════════════════════════════════════════════════════
+    def _vp_token(self):
+        """读声纹服务令牌（必须与 voiceprint-api 的 authorization 一致）"""
+        try:
+            with io.open(VP_CONF, encoding="utf-8") as f:
+                return ((yaml.safe_load(f.read()).get("server") or {})
+                        .get("authorization") or "")
+        except Exception as e:
+            self.logger.bind(tag=TAG).warning("读声纹服务配置失败: %r" % e)
+            return ""
+
+    def _vp_registered(self):
+        """已注册的 speaker_id 集合（直接读库）"""
+        try:
+            import sqlite3
+            if not os.path.isfile(VP_DB):
+                return set()
+            con = sqlite3.connect(VP_DB, timeout=5)
+            try:
+                rows = con.execute(
+                    "SELECT speaker_id FROM voiceprints").fetchall()
+            finally:
+                con.close()
+            return set(r[0] for r in rows)
+        except Exception as e:
+            self.logger.bind(tag=TAG).warning("读声纹库失败: %r" % e)
+            return set()
+
+    async def handle_vp_list(self, request):
+        """声纹页：候选说话人 + 已注册状态 + 服务是否在线"""
+        if not self._check_client(request):
+            return web.json_response({"ok": False, "error": "仅限本机/局域网"},
+                                     status=403)
+        try:
+            cfg = self._read_cfg()
+        except Exception as e:
+            return web.json_response({"ok": False, "error": "读配置失败: %r" % e})
+        vp = cfg.get("voiceprint") or {}
+        speakers = []
+        for s in (vp.get("speakers") or []):
+            parts = str(s).split(",", 2)
+            if len(parts) >= 2:
+                speakers.append({
+                    "id": parts[0].strip(),
+                    "name": parts[1].strip(),
+                    "desc": parts[2].strip() if len(parts) > 2 else "",
+                })
+        reg = self._vp_registered()
+        for sp in speakers:
+            sp["registered"] = sp["id"] in reg
+        online, detail = False, ""
+        try:
+            import aiohttp
+            token = self._vp_token()
+            async with aiohttp.ClientSession() as sess:
+                async with sess.get(
+                    "%s/voiceprint/health?key=%s" % (VP_BASE, token),
+                    timeout=aiohttp.ClientTimeout(total=5),
+                ) as r:
+                    online = (r.status == 200)
+                    if online:
+                        detail = (await r.json()).get("status", "")
+        except Exception as e:
+            detail = repr(e)
+        return web.json_response({
+            "ok": True, "online": online, "detail": detail,
+            "has_token": bool(self._vp_token()),
+            "speakers": speakers, "registered": sorted(reg),
+        })
+
+    async def handle_vp_register(self, request):
+        """浏览器录的音频 → ffmpeg 转 16k 单声道 wav → 交给声纹服务注册
+
+        ★ 为什么要在服务器转码：浏览器 MediaRecorder 录出来的是 webm/opus，
+          而声纹服务只接受 .wav（它内部用 librosa 读）。
+        """
+        if not self._check_client(request):
+            return web.json_response({"ok": False, "error": "仅限本机/局域网"},
+                                     status=403)
+        try:
+            reader = await request.multipart()
+        except Exception as e:
+            return web.json_response(
+                {"ok": False, "error": "需要 multipart 请求: %r" % e}, status=400)
+
+        speaker_id, audio, fname = "", None, "audio.webm"
+        while True:
+            part = await reader.next()
+            if part is None:
+                break
+            if part.name == "speaker_id":
+                speaker_id = (await part.text()).strip()
+            elif part.name == "file":
+                fname = part.filename or fname
+                audio = await part.read()
+        if not speaker_id or not audio:
+            return web.json_response({"ok": False, "error": "缺少 speaker_id 或音频"},
+                                     status=400)
+
+        tmpdir = os.path.join(VP_DIR, "tmp")
+        os.makedirs(tmpdir, exist_ok=True)
+        stamp = "%d" % int(time.time() * 1000)
+        ext = (os.path.splitext(fname)[1] or ".webm").lower()
+        raw_path = os.path.join(tmpdir, "up-%s%s" % (stamp, ext))
+        wav_path = os.path.join(tmpdir, "reg-%s.wav" % stamp)
+        try:
+            with open(raw_path, "wb") as f:
+                f.write(audio)
+            if ext != ".wav":
+                ff = VP_FFMPEG if os.path.isfile(VP_FFMPEG) else "ffmpeg"
+                pr = subprocess.run(
+                    [ff, "-y", "-i", raw_path, "-ar", "16000", "-ac", "1",
+                     "-sample_fmt", "s16", wav_path],
+                    capture_output=True, timeout=60)
+                if pr.returncode != 0 or not os.path.isfile(wav_path):
+                    tail = (pr.stderr or b"")[-400:].decode("utf-8", "replace")
+                    return web.json_response(
+                        {"ok": False, "error": "音频转码失败: %s" % tail}, status=200)
+            else:
+                wav_path = raw_path
+
+            import aiohttp
+            token = self._vp_token()
+            data = aiohttp.FormData()
+            data.add_field("speaker_id", speaker_id)
+            with open(wav_path, "rb") as f:
+                data.add_field("file", f.read(), filename="audio.wav",
+                               content_type="audio/wav")
+            async with aiohttp.ClientSession() as sess:
+                async with sess.post(
+                    "%s/voiceprint/register" % VP_BASE, data=data,
+                    headers={"Authorization": "Bearer %s" % token},
+                    timeout=aiohttp.ClientTimeout(total=60),
+                ) as r:
+                    body = await r.text()
+                    if r.status == 200:
+                        self.logger.bind(tag=TAG).info("声纹注册成功: %s" % speaker_id)
+                        return web.json_response({"ok": True, "id": speaker_id,
+                                                  "msg": body})
+                    return web.json_response(
+                        {"ok": False, "error": "声纹服务 HTTP %s: %s"
+                         % (r.status, body[:300])}, status=200)
+        except Exception as e:
+            self.logger.bind(tag=TAG).error("声纹注册失败: %r" % e)
+            return web.json_response({"ok": False, "error": repr(e)}, status=200)
+        finally:
+            for p in (raw_path, wav_path):
+                try:
+                    if p and os.path.isfile(p):
+                        os.remove(p)
+                except Exception:
+                    pass
+
+    async def handle_vp_delete(self, request):
+        """删除某个说话人的声纹"""
+        if not self._check_client(request):
+            return web.json_response({"ok": False, "error": "仅限本机/局域网"},
+                                     status=403)
+        try:
+            body = await request.json()
+        except Exception as e:
+            return web.json_response({"ok": False, "error": "参数错误: %r" % e},
+                                     status=400)
+        sid = str(body.get("id") or "").strip()
+        if not sid:
+            return web.json_response({"ok": False, "error": "缺 id"}, status=400)
+        try:
+            import aiohttp
+            token = self._vp_token()
+            async with aiohttp.ClientSession() as sess:
+                async with sess.delete(
+                    "%s/voiceprint/%s" % (VP_BASE, sid),
+                    headers={"Authorization": "Bearer %s" % token},
+                    timeout=aiohttp.ClientTimeout(total=30),
+                ) as r:
+                    txt = await r.text()
+                    if r.status == 200:
+                        self.logger.bind(tag=TAG).info("声纹已删除: %s" % sid)
+                        return web.json_response({"ok": True, "msg": txt})
+                    return web.json_response(
+                        {"ok": False, "error": "HTTP %s: %s" % (r.status, txt[:200])},
+                        status=200)
+        except Exception as e:
+            return web.json_response({"ok": False, "error": repr(e)}, status=200)
+
+    async def handle_vp_speaker_add(self, request):
+        """新增一个候选说话人（写进配置的 voiceprint.speakers）
+
+        ★ 要「认得某人」是两步：①这里把 TA 加进候选列表 ②再用录音注册一段声纹。
+        """
+        if not self._check_client(request):
+            return web.json_response({"ok": False, "error": "仅限本机/局域网"},
+                                     status=403)
+        try:
+            body = await request.json()
+        except Exception as e:
+            return web.json_response({"ok": False, "error": "参数错误: %r" % e},
+                                     status=400)
+        sid = str(body.get("id") or "").strip()
+        name = str(body.get("name") or "").strip()
+        desc = str(body.get("desc") or "").strip()
+        if not sid or not name:
+            return web.json_response({"ok": False, "error": "ID 和名字都要填"},
+                                     status=200)
+        # speaker_id 会出现在 URL / 表单里，限制字符集免得踩坑
+        if not re.match(r"^[A-Za-z0-9_-]{1,32}$", sid):
+            return web.json_response(
+                {"ok": False, "error": "ID 只能用字母/数字/下划线/横线（1~32 位）"},
+                status=200)
+        try:
+            cfg = self._read_cfg()
+            vp = cfg.setdefault("voiceprint", {})
+            speakers = vp.setdefault("speakers", [])
+            for s in speakers:
+                if str(s).split(",", 1)[0].strip() == sid:
+                    return web.json_response(
+                        {"ok": False, "error": "已经有 ID 为 %s 的说话人了" % sid},
+                        status=200)
+            speakers.append("%s,%s,%s" % (sid, name, desc))
+            self._write_cfg(cfg)
+            self.logger.bind(tag=TAG).info("新增说话人: %s (%s)" % (sid, name))
+            return web.json_response({"ok": True, "id": sid, "name": name})
+        except Exception as e:
+            self.logger.bind(tag=TAG).error("新增说话人失败: %r" % e)
+            return web.json_response({"ok": False, "error": repr(e)}, status=200)
+
+    async def handle_vp_speaker_remove(self, request):
+        """移除一个说话人：从候选列表删掉 + 顺带删掉它的声纹
+
+        ★ 语义统一成「删除这个人就两样都没了」，免得出现
+          「列表里没了但声纹还在库里」的悬空状态。
+        """
+        if not self._check_client(request):
+            return web.json_response({"ok": False, "error": "仅限本机/局域网"},
+                                     status=403)
+        try:
+            body = await request.json()
+        except Exception as e:
+            return web.json_response({"ok": False, "error": "参数错误: %r" % e},
+                                     status=400)
+        sid = str(body.get("id") or "").strip()
+        if not sid:
+            return web.json_response({"ok": False, "error": "缺 id"}, status=400)
+
+        removed_cfg = False
+        try:
+            cfg = self._read_cfg()
+            vp = cfg.get("voiceprint") or {}
+            speakers = list(vp.get("speakers") or [])
+            keep = [s for s in speakers
+                    if str(s).split(",", 1)[0].strip() != sid]
+            if len(keep) != len(speakers):
+                vp["speakers"] = keep
+                cfg["voiceprint"] = vp
+                self._write_cfg(cfg)
+                removed_cfg = True
+        except Exception as e:
+            return web.json_response({"ok": False, "error": "改配置失败: %r" % e},
+                                     status=200)
+
+        vp_deleted = False
+        try:
+            import aiohttp
+            token = self._vp_token()
+            async with aiohttp.ClientSession() as sess:
+                async with sess.delete(
+                    "%s/voiceprint/%s" % (VP_BASE, sid),
+                    headers={"Authorization": "Bearer %s" % token},
+                    timeout=aiohttp.ClientTimeout(total=30),
+                ) as r:
+                    vp_deleted = (r.status == 200)
+        except Exception as e:
+            self.logger.bind(tag=TAG).warning("删声纹特征失败(忽略): %r" % e)
+
+        if not removed_cfg:
+            return web.json_response({"ok": False, "error": "配置里没有这个 ID"},
+                                     status=200)
+        self.logger.bind(tag=TAG).info("移除说话人: %s (声纹已删=%s)" % (sid, vp_deleted))
+        return web.json_response({"ok": True, "id": sid,
+                                  "voiceprint_deleted": vp_deleted})
+
     # ── 注册路由 ────────────────────────────────────────────
     def register(self, app):
         app.add_routes([
@@ -1198,6 +1502,13 @@ class AdminHandler:
         web.post("/admin/api/hw_apply", self.handle_hw_apply),
         web.get("/admin/api/skin", self.handle_skin_get),
             web.post("/admin/api/skin", self.handle_skin_set),
+        # ★ 声纹识别（控制台「声纹」页，2026-09-22）
+        web.get("/admin/api/voiceprint", self.handle_vp_list),
+        web.post("/admin/api/voiceprint/register", self.handle_vp_register),
+        web.post("/admin/api/voiceprint/delete", self.handle_vp_delete),
+        # ★ 声纹说话人的增删（候选列表写在配置 voiceprint.speakers 里）
+        web.post("/admin/api/voiceprint/speaker/add", self.handle_vp_speaker_add),
+        web.post("/admin/api/voiceprint/speaker/remove", self.handle_vp_speaker_remove),
         ])
         # ★ 提示文本：不要只写 127.0.0.1 —— 手机/平板要用局域网 IP 访问
         #   （控制台已放行局域网，见 _is_lan）

@@ -82,6 +82,28 @@ distributed by this repository.
 
 ---
 
+## 5-2. voiceprint-api（Apache-2.0）★ 本项目**修改了**它的代码（3 个文件）
+
+- **来源**：<https://github.com/xinnan-tech/voiceprint-api>（声纹识别服务，阿里 3D-Speaker）
+- **许可**：Apache License 2.0 —— 全文见 [`licenses/Apache-2.0.txt`](licenses/Apache-2.0.txt)
+- **本包内包含什么**：`server/third-party-patches/voiceprint-api-sqlite/` ——
+  **3 个修改版文件** + 一份改造说明。
+  ⛔ **不含它的源码本体**（其余文件请自行 `git clone`）。
+- **我们做的改动**（Apache-2.0 §4(b) 要求的「被修改过的文件」声明）：
+  - 存储层 **MySQL → SQLite**：
+    `app/core/config.py`（新增 `sqlite` 配置）、
+    `app/database/connection.py`（改用 `sqlite3`，**`get_cursor()` 接口保持不变**）、
+    `app/database/voiceprint_db.py`（建表与读写按 SQLite 语法）
+  - **未改动**业务逻辑与对外接口
+- **为什么改**：省掉一个常驻的 MySQL 服务（声纹每人只有约 2 KB，一个 SQLite 文件足够）；
+  并且本项目控制台需要**直接读这个 SQLite 库**来显示「谁已注册」
+- 上游仓库若有 `NOTICE` 文件，请一并保留
+
+> ⚠️ 它依赖的 **3D-Speaker 模型**（`iic/speech_campplus_sv_zh-cn_3dspeaker_16k`）
+> 由 modelscope 在首次启动时自行下载，**不随本包分发**。
+
+---
+
 ## 6. 不在上述任何许可范围内的东西（版权提醒）
 
 ```text

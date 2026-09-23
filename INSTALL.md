@@ -325,6 +325,21 @@ python3 tools/test_server_e2e.py --audio <一段 5~10 秒人声 wav> \
 - 服务器侧还有一层 **Fairy 语气后处理**（暖度/削尖/降调/语速），
   **默认全部关闭**，想要就在 `gpt_sovits_v2.py` 里打开
 
+### 1.6 可选：声纹识别（让设备认得出「是谁在说」）
+
+**不是必须的** —— 不装也能正常对话，只是分不清是谁在说话。
+装了之后：每次说话服务器会比对声纹，认出就把说话人名字带进上下文。
+
+- 需要一个**单独的声纹服务**（上游没有）：
+  [`xinnan-tech/voiceprint-api`](https://github.com/xinnan-tech/voiceprint-api)（3D-Speaker），跑在 **8005**。
+  ★ 本项目对它做了 **MySQL → SQLite** 的改造，补丁在 `server/third-party-patches/`
+  （**不覆盖的话，控制台里所有状态都会显示「未注册」**）
+- 在 `data/.config.yaml` 里填 `voiceprint.url`（带 key）+ `speakers`（格式 `"id,名字,描述"`）
+- 然后在控制台 **🗣️ 声纹** 页「添加说话人」+「录音注册」6 秒
+
+★ **完整步骤见 [`server/README.md`](server/README.md) 的「声纹识别」一节**
+（含每一步的判据、常见问题、以及麦克风只能在 localhost 用的原因）。
+
 ---
 
 ## §2 线二：固件（服务器通了再动设备）

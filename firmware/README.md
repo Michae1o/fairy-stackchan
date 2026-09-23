@@ -89,7 +89,7 @@ lv_indev_set_display(indev, lv_display_get_default());  // ← 别漏
 ### ③ 所有 LVGL 操作都要加锁
 
 LVGL 非线程安全。本项目用 `DisplayLockGuard lock(display_)`。
-定时器回调里操作 LVGL 尤其要加锁，否则**菜单会卡死**（点不动也关不掉）。
+定时器回调里操作 LVGL 尤其要加锁，否则界面会卡死（点不动也刷不出来）。
 
 ### ④ BMI270 的 I2C 地址是 0x69，不是 0x68
 
@@ -433,10 +433,6 @@ idf.py build
 · 电源键短按 → PollPowerKey() 里（★ 推荐，断网也能用）
 · 语音       → skin_manager.cc 的 MCP 工具 self.skin.set
 ```
-
-> ⚠️ **早期版本还有第三种「状态栏 ☰ 菜单」**，因触摸热区太小、体验差，
-> **已整体移除**（相关代码也删干净了）。想加回设备端菜单，
-> 参考 `MenuBuild()` 的思路自己接一个入口即可。
 
 ---
 
