@@ -244,6 +244,18 @@ private:
     //   原因：默认开着会一直自己转头，用户觉得吵/费舵机
     //   ⇒ 默认 false，需要的人在菜单/控制台里打开（存 NVS）
     std::atomic<bool> auto_motion_{false};
+
+    // ★★ 反应动作的「基准角度 + 恢复计时」
+    //   病根（用户反馈三连）：摸头/甩晕/待机 都写死绝对角度（pitch 45°/55°），
+    //   而不是相对【当前角度】做温和增量 ⇒ 只要开机默认姿势不是 45°，
+    //   这些动作就会把俯仰猛拽到 45/55，看着就像「第一下就顶到最高」；
+    //   而且摸头做完【不还原】，头一直抬着。
+    //   现在照官方 modifiers/head_pet.h：
+    //     记下基准 → 加随机小增量 → 平滑过去 → 3 秒后平滑还原。
+    float pet_base_yaw_ = 0.0f;
+    float pet_base_pitch_ = 45.0f;
+    int64_t pet_restore_at_ = 0;            // 0 = 无需恢复
+    std::atomic<bool> motion_busy_{false};  // 反应动作进行中（待机小动作让路）
     StackChanGeometryDisplay* geometry_display_ = nullptr;
 
     void InitializePowerSaveTimer() {
@@ -1032,12 +1044,35 @@ public:
                             self->ReactShake();
                         }
                     }
+                    // ★ 摸头满 3 秒后，平滑还原到「摸之前」的姿势
+                    //   （照官方 HeadPetModifier 的 restoreDelayMs = 3000）
+                    //   时间没到就跳过，不阻塞轮询；摸头期间会被 ReactPet
+                    //   不断推迟，等于「手还在摸就不还原」。
+                    if (self->pet_restore_at_ != 0 &&
+                        !self->motion_busy_.load() &&
+                        (esp_timer_get_time() / 1000) >= self->pet_restore_at_) {
+                        self->pet_restore_at_ = 0;
+                        if (self->servo_ != nullptr && self->servo_->IsReady()) {
+                            self->motion_busy_.store(true);
+                            self->servo_->MoveSmooth(self->pet_base_yaw_,
+                                                     self->pet_base_pitch_,
+                                                     250, 400);
+                            self->motion_busy_.store(false);
+                        }
+                    }
                     vTaskDelay(pdMS_TO_TICKS(10));
                 }
             },
             "sens_poll", 3072, this, 3, &sensor_task_);
 
-        // ② 待机小动作任务（每 6~14 秒随机转头一次，只在 idle 时动）
+        // ② 待机小动作任务 —— 照官方 modifiers/idle_motion.h 的四种动作
+        //
+        // ★ 用户反馈：「待机自动转头，只能左右，不能上下，这很局限」
+        //   旧实现把 pitch 写死 45°（MoveTo(delta, 45.0f)）⇒ 只可能左右摆。
+        //   官方是【四种随机动作】（环视 / 小幅张望 / 快速一瞥 / Yaw 回正），
+        //   每一种都同时动 yaw 和 pitch。
+        //   这里照搬，并把基准从「固定 45°」改成「当前角度」，
+        //   动作全部走 MoveSmooth 平滑下发（不猛甩）。
         xTaskCreate(
             [](void* arg) {
                 auto* self = static_cast<M5StackCoreS3Board*>(arg);
@@ -1045,36 +1080,72 @@ public:
                     // 随机间隔 6~14 秒
                     uint32_t wait_ms = 6000 + (esp_random() % 8000);
                     vTaskDelay(pdMS_TO_TICKS(wait_ms));
-                    if (self->servo_ == nullptr) {
+
+                    if (self->servo_ == nullptr || !self->servo_->IsReady()) {
                         continue;
                     }
                     // ★ 开关关了就跳过（用户可在控制台关掉）
                     if (!self->auto_motion_.load()) {
                         continue;
                     }
-                    auto st = Application::GetInstance().GetDeviceState();
-                    if (st != kDeviceStateIdle) {
+                    // 正在做摸头/甩晕反应时别插一脚
+                    if (self->motion_busy_.load()) {
+                        continue;
+                    }
+                    if (Application::GetInstance().GetDeviceState() !=
+                        kDeviceStateIdle) {
                         continue;   // 说话/听的时候别乱动
                     }
-                    // 随机取一个目标 yaw（±40 度内）
-                    int delta = (int)(esp_random() % 81) - 40;
-                    if (delta > -12 && delta < 12) {
-                        delta = (delta >= 0) ? 18 : -18;   // 避免几乎不动的角度
+
+                    // 以【当前角度】为基准（官方 idle_motion 也是基于当前角度）
+                    float cy = self->servo_->GetYawAngle();
+                    float cp = self->servo_->GetPitchAngle();
+                    if (cy <= -900.0f) cy = self->servo_->GetHomeYaw();
+                    if (cp <= -900.0f) cp = self->servo_->GetHomePitch();
+
+                    float ty = cy;
+                    float tp = cp;
+                    uint16_t spd = 250;
+                    uint32_t action = esp_random() % 100;
+                    const char* name = "?";
+
+                    if (action < 40) {
+                        // ① 环视：朝一边偏 20~45°，同时抬头或低头 5~15°
+                        float side = (esp_random() % 2) ? 1.0f : -1.0f;
+                        ty = cy + side * (20.0f + (esp_random() % 26));
+                        tp = cp + ((esp_random() % 2) ? 1.0f : -1.0f) *
+                                        (5.0f + (esp_random() % 11));
+                        spd = 250 + (esp_random() % 60);
+                        name = "环视";
+                    } else if (action < 70) {
+                        // ② 小幅张望：在当前位置上做小抖动
+                        ty = cy + static_cast<int>(esp_random() % 31) - 15;
+                        tp = cp + static_cast<int>(esp_random() % 13) - 6;
+                        spd = 180 + (esp_random() % 60);
+                        name = "张望";
+                    } else if (action < 85) {
+                        // ③ 快速一瞥：偏得多、动得快、带点抬头
+                        float side = (esp_random() % 2) ? 1.0f : -1.0f;
+                        ty = cy + side * (30.0f + (esp_random() % 21));
+                        tp = cp + 8.0f + (esp_random() % 10);
+                        spd = 450;
+                        name = "一瞥";
+                    } else {
+                        // ④ 回正：yaw 归零，pitch 回开机默认角度
+                        ty = self->servo_->GetHomeYaw();
+                        tp = self->servo_->GetHomePitch();
+                        spd = 220;
+                        name = "回正";
                     }
-                    // ★ 恢复原始语义：MoveTo(yaw, pitch)
-                    //   pitch=45°（默认俯仰），speed 用默认 600
-                    //   （此前我误以为 45 是 speed，改成了 GetPitchAngle()
-                    //     ⇒ 待机转头不生效，已回滚）
-                    self->servo_->MoveTo(
-                        static_cast<float>(delta), 45.0f);
-                    ESP_LOGI(TAG, "idle motion: yaw=%d", delta);
-                    // 停 2 秒后回正
-                    vTaskDelay(pdMS_TO_TICKS(2000));
-                    if (Application::GetInstance().GetDeviceState() ==
-                        kDeviceStateIdle) {
-                        // ★ 恢复：回正（pitch=45）
-                        self->servo_->MoveTo(0.0f, 45.0f);
-                    }
+
+                    ty = M5StackCoreS3Board::ClampSoftYaw(ty);
+                    tp = M5StackCoreS3Board::ClampSoftPitch(tp);
+
+                    self->motion_busy_.store(true);
+                    self->servo_->MoveSmooth(ty, tp, spd, 420);
+                    self->motion_busy_.store(false);
+                    ESP_LOGI(TAG, "idle motion(%s): yaw=%.1f pitch=%.1f",
+                             name, ty, tp);
                 }
             },
             "idle_mot", 3072, this, 2, &idle_motion_task_);
@@ -1148,7 +1219,38 @@ public:
             });
     }
 
-    // ★ 摸头反应：开心表情（几何脸模式下走官方几何表情）
+    // ── 自动动作的「软限位」────────────────────────────────
+    // ★ 别让表情动作把舵机顶到机械极限（pitch 硬限位 3~87°）。
+    //   自动动作只在中间这段活动，给物理行程留余量。
+    static float ClampSoftPitch(float d) {
+        if (d < 8.0f) return 8.0f;
+        if (d > 65.0f) return 65.0f;
+        return d;
+    }
+    static float ClampSoftYaw(float d) {
+        if (d < -70.0f) return -70.0f;
+        if (d > 70.0f) return 70.0f;
+        return d;
+    }
+
+    // ★ 记下当前姿势（读失败时用开机默认角度兜底）
+    void SnapshotPose(float* yaw, float* pitch) {
+        *yaw = servo_->GetYawAngle();
+        *pitch = servo_->GetPitchAngle();
+        if (*yaw <= -900.0f) *yaw = servo_->GetHomeYaw();
+        if (*pitch <= -900.0f) *pitch = servo_->GetHomePitch();
+    }
+
+    // ★ 摸头反应：开心 + 冒爱心 + 【相对当前角度】的温和动作
+    //
+    // ★★ 旧实现的两个问题（用户反馈：「摸摸头的动作也会导致他俯仰角一下变最高」）：
+    //   ① 角度写死绝对值（MoveTo(0, 55)）⇒ 只要开机默认姿势不是 45°，
+    //      这一下就是把头【猛拽到 55°】，看着就像「第一下就顶到最高」
+    //   ② 动作做完【不还原】⇒ 头一直抬着
+    //   现在照官方 modifiers/head_pet.h：
+    //     · 记下摸之前的 yaw/pitch 作基准，在此基础上加【随机小增量】
+    //     · 慢速平滑过去（MoveSmooth）
+    //     · 3 秒后平滑还原（由 sens_poll 任务里的 pet_restore_at_ 计时）
     void ReactPet() {
         ESP_LOGI(TAG, "摸头 → 开心 + 冒爱心");
         auto display = Board::GetInstance().GetDisplay();
@@ -1156,21 +1258,58 @@ public:
             display->SetEmotion("happy");
         }
         // ★ 冒爱心（用户要求：「冒爱心」）
-        //   装饰器代码早就在，之前是【漏调用】⇒ 从不显示
         if (geometry_display_ != nullptr) {
             geometry_display_->ShowHeart();
         }
-        // 顺带轻轻抬头（像被摸头的反应）
-        if (servo_ != nullptr) {
-            // ★★ 恢复原始：摸头轻轻【抬头】到 55°
-            //   （此前我误改成 GetPitchAngle() ⇒ 头不动 ⇒ 用户报"不会抬头"）
-            servo_->MoveTo(0.0f, 55.0f);
-            vTaskDelay(pdMS_TO_TICKS(700));
+
+        if (servo_ == nullptr || !servo_->IsReady()) {
+            return;
         }
+
+        float base_yaw = 0.0f, base_pitch = 45.0f;
+        SnapshotPose(&base_yaw, &base_pitch);
+        pet_base_yaw_ = base_yaw;
+        pet_base_pitch_ = base_pitch;
+
+        float ty = base_yaw;
+        float tp = base_pitch;
+
+        // 官方 head_pet 也是「三种动作随机挑一种」
+        switch (esp_random() % 3) {
+            case 0:   // 抬头（像被摸头顶）
+                tp = base_pitch + 12.0f + (esp_random() % 7);           // +12~18°
+                ty = base_yaw + static_cast<int>(esp_random() % 17) - 8;
+                break;
+            case 1:   // 歪头
+                ty = base_yaw + ((esp_random() % 2) ? 1.0f : -1.0f) *
+                                       (15.0f + (esp_random() % 11));
+                tp = base_pitch - 1.0f - (esp_random() % 4);            // 略低 1~4°
+                break;
+            default:  // 大幅度开心
+                tp = base_pitch + 18.0f + (esp_random() % 7);           // +18~24°
+                break;
+        }
+        ty = ClampSoftYaw(ty);
+        tp = ClampSoftPitch(tp);
+
+        motion_busy_.store(true);
+        servo_->MoveSmooth(ty, tp, 300, 360);
+        motion_busy_.store(false);
+
+        // 3 秒后还原；期间再被摸会刷新这个时间戳（= 手还在摸就不还原）
+        pet_restore_at_ = (esp_timer_get_time() / 1000) + 3000;
+        ESP_LOGI(TAG, "摸头动作: yaw=%.1f→%.1f pitch=%.1f→%.1f",
+                 base_yaw, ty, base_pitch, tp);
     }
 
     // ★ 摇晃反应：晕眩（用户要求：「甩晕」）
-    //   IMU 现已真正启用（BMI270 @ 0x69，与 SI12T 的 0x68 不冲突）
+    //
+    // ★★ 用户反馈：「甩晕的过程中它会不断扭头，但俯仰角第一下就会变到最高」
+    //   旧实现三次 MoveTo 都把 pitch 写成 45°（绝对值）：
+    //     · 开机默认姿势不是 45° 时，第一下就把俯仰猛拽到 45°
+    //     · 后两次同样写 45° ⇒ 只有「第一下」看得出变化
+    //   现在：pitch 全程【保持当前值不动】，只做 yaw 的平滑小幅摆动，
+    //         结束时平滑回到原角度。扭头保留，俯仰不再乱动。
     void ReactShake() {
         ESP_LOGI(TAG, "摇晃 → 晕眩");
         auto display = Board::GetInstance().GetDisplay();
@@ -1181,15 +1320,26 @@ public:
         if (geometry_display_ != nullptr) {
             geometry_display_->ShowDizzy();
         }
-        // 晕眩：左右快速摆两下
-        if (servo_ != nullptr) {
-            // ★ 恢复原始：甩晕左右摆头（pitch=45）
-            servo_->MoveTo(-30.0f, 45.0f);
-            vTaskDelay(pdMS_TO_TICKS(180));
-            servo_->MoveTo(30.0f, 45.0f);
-            vTaskDelay(pdMS_TO_TICKS(180));
-            servo_->MoveTo(0.0f, 45.0f);
+
+        if (servo_ == nullptr || !servo_->IsReady()) {
+            return;
         }
+
+        float base_yaw = 0.0f, base_pitch = 45.0f;
+        SnapshotPose(&base_yaw, &base_pitch);
+
+        float left  = ClampSoftYaw(base_yaw - 25.0f);
+        float right = ClampSoftYaw(base_yaw + 25.0f);
+
+        motion_busy_.store(true);
+        // ★ pitch 一律传 base_pitch：甩晕不改俯仰
+        servo_->MoveSmooth(left, base_pitch, 350, 240);
+        servo_->MoveSmooth(right, base_pitch, 350, 300);
+        servo_->MoveSmooth(left, base_pitch, 350, 300);
+        servo_->MoveSmooth(base_yaw, base_pitch, 250, 260);
+        motion_busy_.store(false);
+        ESP_LOGI(TAG, "摇晃动作结束，回到 yaw=%.1f pitch=%.1f",
+                 base_yaw, base_pitch);
     }
 
     void InitializeServo() {

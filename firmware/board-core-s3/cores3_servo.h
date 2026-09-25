@@ -50,6 +50,19 @@ public:
     bool SetPitchAngle(float deg, uint16_t speed = 600);
     bool MoveTo(float yaw_deg, float pitch_deg, uint16_t speed = 600);
 
+    // ★★ 平滑运动：把「从这里到那里」拆成若干小步逐段下发，
+    //    避免一次性下发大角度命令造成的「猛甩头 / 头被拽了一下」。
+    //
+    //    官方 stackchan 是弹簧动画每 20ms 算一个中间点下发
+    //    （motion/servo.cpp: update() + set_angle_impl），这里用等价的
+    //    轻量做法：smoothstep 缓动插值 + 每步 20ms。
+    //
+    //    duration_ms 是总时长；中途若有新命令（代次号变化）本循环立刻让路，
+    //    保证「后一条命令赢」，不会两条命令来回打架。
+    bool MoveSmooth(float yaw_deg, float pitch_deg,
+                    uint16_t speed = 300, int duration_ms = 400,
+                    bool ease = true);
+
     // 回中（yaw=0, pitch=45）
     bool Center(uint16_t speed = 400);
 
@@ -83,11 +96,25 @@ private:
     static constexpr float kPitchMin = 3.0f;
     static constexpr float kPitchMax = 87.0f;
 
+    // 平滑运动的代次号（新命令让旧插值循环退出）
+    std::atomic<uint32_t> motion_gen_{0};
+    static constexpr int kSmoothStepMs = 20;
+
     // pitch 堵转保护（防烧舵机）—— 参数取自官方 hal_servo.cpp
+    //
+    // ★★ 官方判定的成立条件是【两个同时】：
+    //      ① 位置卡住（两次采样位移 <= kStallMaxPositionDeltaRaw）
+    //      ② 电流或负载尖峰
+    //    早期移植只看了 ②（电流绝对值超阈值就计数）⇒ 舵机正常加速阶段的
+    //    电流上冲被误判成「堵转」⇒ 运动中就地急停 + 永久收紧俯仰上限。
+    //    现在补齐 ①，与官方 hal_servo.cpp L223-285 一致。
     bool pitch_stall_enabled_ = true;
     int last_pitch_cmd_raw_ = 0;
     float pitch_limit_deg_ = kPitchMax;   // 检测到堵转后收紧上限
     unsigned long last_stall_check_ms_ = 0;
+    int last_stall_pos_raw_ = -1;         // 上次采样位置（判「卡住」用）
+    int last_stall_dir_ = 0;              // 上次运动方向（同方向才比较）
+    bool last_stall_valid_ = false;       // 上次采样是否有效
 
     static constexpr int kStallFeedbackIntervalMs = 50;
     static constexpr int kStallMinTargetDeltaRaw = 8;
@@ -107,6 +134,7 @@ private:
 
     // 堵转保护
     void CheckPitchStall(int target_raw);
+    void ResetStallDetection();
 };
 
 #endif  // _CORES3_SERVO_H_

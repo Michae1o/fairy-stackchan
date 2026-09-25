@@ -205,7 +205,20 @@ float CoreS3Servo::GetPitchAngle() {
 }
 
 // ── pitch 堵转保护（防烧舵机）
-//    参数与判定逻辑取自官方 hal_servo.cpp L177-318
+//    参数与判定逻辑取自官方 hal_servo.cpp L223-285
+//
+// ★★ 官方判定成立的条件是【两个同时】：
+//      ① 位置卡住：本次位置与上次位置之差 <= kStallMaxPositionDeltaRaw
+//      ② 电流或负载尖峰
+//    早期移植只看了 ② ⇒ 舵机正常加速阶段的电流上冲被误判为「堵转」
+//    ⇒ 运动中就地急停 + 永久收紧俯仰上限，观感就是「头动到一半突然一顿
+//       / 被猛地一拽」。这里补齐 ①，与官方一致。
+void CoreS3Servo::ResetStallDetection() {
+    last_stall_valid_ = false;
+    last_stall_dir_ = 0;
+    stall_hit_count_ = 0;
+}
+
 void CoreS3Servo::CheckPitchStall(int target_raw) {
     if (!pitch_stall_enabled_) {
         return;
@@ -217,42 +230,110 @@ void CoreS3Servo::CheckPitchStall(int target_raw) {
     }
     last_stall_check_ms_ = now;
 
-    // 目标与当前差太小 → 不检查（本来就没想动）
     int cur_raw = bus_->ReadPos(kPitchId);
     if (cur_raw < 0) {
-        return;
-    }
-    if (abs(target_raw - cur_raw) < kStallMinTargetDeltaRaw) {
-        stall_hit_count_ = 0;
+        ResetStallDetection();
         return;
     }
 
-    int cur = bus_->ReadCurrent(kPitchId);
-    int load = bus_->ReadLoad(kPitchId);
-    if (cur < 0 || load < 0) {
+    // 目标与当前差太小 → 本来就没想动，不检查
+    int target_delta = target_raw - cur_raw;
+    if (abs(target_delta) < kStallMinTargetDeltaRaw) {
+        ResetStallDetection();
         return;
     }
 
-    bool stall = (cur > kStallCurrentAbsThreshold) ||
-                 (load > kStallLoadAbsThreshold);
-    if (stall) {
-        stall_hit_count_++;
+    int direction = target_delta > 0 ? 1 : -1;
+
+    // 只有【同方向】的连续两次采样才做「卡住」比较（官方同款）
+    if (last_stall_valid_ && direction == last_stall_dir_) {
+        int pos_delta = abs(cur_raw - last_stall_pos_raw_);
+        bool position_stuck = pos_delta <= kStallMaxPositionDeltaRaw;
+
+        int cur = bus_->ReadCurrent(kPitchId);
+        int load = bus_->ReadLoad(kPitchId);
+        if (cur < 0 || load < 0) {
+            ResetStallDetection();
+            return;
+        }
+
+        bool spike = (abs(cur) >= kStallCurrentAbsThreshold) ||
+                     (abs(load) >= kStallLoadAbsThreshold);
+
+        // ★ 位置还在动 ⇒ 一定不是堵转（官方同款判据，早期移植漏掉的就是这句）
+        if (position_stuck && spike) {
+            stall_hit_count_++;
+        } else if (pos_delta > kStallMaxPositionDeltaRaw) {
+            stall_hit_count_ = 0;
+        }
     } else {
         stall_hit_count_ = 0;
+    }
+
+    last_stall_pos_raw_ = cur_raw;
+    last_stall_dir_ = direction;
+    last_stall_valid_ = true;
+
+    if (stall_hit_count_ < kStallConfirmSamples) {
         return;
     }
 
-    if (stall_hit_count_ >= kStallConfirmSamples) {
-        // 确认堵转 → 收紧上限、停止动作、就地在当前位置落点
-        ESP_LOGW(TAG, "pitch stall detected (cur=%d load=%d) → limiting",
-                 cur, load);
-        float cur_deg = RawToAngle(pitch_zero_, cur_raw);
-        if (cur_deg > kPitchMin + 5.0f) {
-            pitch_limit_deg_ = cur_deg - 2.0f;   // 收紧
-        }
-        bus_->WritePos(kPitchId, static_cast<u16>(cur_raw), 0, 0);
-        stall_hit_count_ = 0;
+    // 确认堵转 → 收紧上限、就地在当前位置落点
+    ESP_LOGW(TAG, "pitch stall detected at raw=%d (target=%d) → limiting",
+             cur_raw, target_raw);
+    float cur_deg = RawToAngle(pitch_zero_, cur_raw);
+    if (cur_deg > kPitchMin + 5.0f && cur_deg - 2.0f < pitch_limit_deg_) {
+        pitch_limit_deg_ = cur_deg - 2.0f;   // 只允许收紧，不允许放宽
     }
+    // ★ 就地落点必须给 Time=20（官方同款写法）。
+    //   Time=0 且 Speed=0 在飞特协议里等于「以最高速运行」⇒ 会看到头猛地一冲。
+    bus_->WritePos(kPitchId, static_cast<u16>(cur_raw), 20, 0);
+    ResetStallDetection();
+}
+
+// ── 平滑运动（把大角度差拆成小步，避免「猛甩头」）
+//
+// 背景（用户反馈）：
+//   一次性把目标角度写下去，舵机会以定速直接冲过去 ⇒ 观感生硬，
+//   摸头 / 甩晕 这类「表情动作」看起来像被谁拽了一把。
+//   官方是用弹簧动画每 20ms 算一个中间点下发（motion/servo.cpp），
+//   这里用等价的轻量做法：smoothstep 缓动 + 每步 20ms。
+//
+// 打断：每次调用递增 motion_gen_，旧循环发现代次变了立刻返回，
+//       保证「后一条命令赢」。
+bool CoreS3Servo::MoveSmooth(float yaw_deg, float pitch_deg,
+                             uint16_t speed, int duration_ms, bool ease) {
+    if (!ready_ || bus_ == nullptr) {
+        return false;
+    }
+
+    float y0 = GetYawAngle();
+    float p0 = GetPitchAngle();
+    // 读失败（-999）时用开机默认角度兜底，避免把 NaN 语义值算进插值
+    if (y0 <= -900.0f) y0 = home_yaw_;
+    if (p0 <= -900.0f) p0 = home_pitch_;
+
+    float y1 = ClampYaw(yaw_deg);
+    float p1 = ClampPitch(pitch_deg);
+
+    uint32_t gen = ++motion_gen_;
+
+    int steps = duration_ms / kSmoothStepMs;
+    if (steps < 1) steps = 1;
+    if (steps > 60) steps = 60;   // 上限约 1.2 秒，别长时间占着调用者
+
+    for (int i = 1; i <= steps; i++) {
+        if (motion_gen_.load() != gen) {
+            return false;   // 已被更新的命令接管
+        }
+        float t = static_cast<float>(i) / static_cast<float>(steps);
+        if (ease) {
+            t = t * t * (3.0f - 2.0f * t);   // smoothstep：两端速度 0
+        }
+        MoveTo(y0 + (y1 - y0) * t, p0 + (p1 - p0) * t, speed);
+        vTaskDelay(pdMS_TO_TICKS(kSmoothStepMs));
+    }
+    return true;
 }
 
 // ── MCP 工具（让 AI 能控制转头，免编译调参）

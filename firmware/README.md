@@ -8,7 +8,7 @@
 
 ```text
 ① 文件清单              —— 改/加了哪些文件，各自放哪、干什么
-② 关键实现要点          —— 六个最容易踩的坑（LVGL 输入设备 / 装饰器 update / 加锁 / BMI270 0x69 / 唤醒词 / 两套 SetupUI）
+② 关键实现要点          —— 七个最容易踩的坑（LVGL 输入设备 / 装饰器 update / 加锁 / BMI270 0x69 / 唤醒词 / 两套 SetupUI / 舵机动作别写死绝对角度）
 ③ 编译                  —— 怎么编（详细 SOP 在 ../INSTALL.md）
 ④ 双皮肤怎么实现的       —— 原理、数据结构、改成你自己的两套、地址自动记忆、排查
 ⑤ 表情素材              —— 规格要求 + 从矢量图/代码导出「设备能吃」的素材
@@ -26,12 +26,12 @@
 
 | 文件 | 作用 |
 |---|---|
-| `m5stack_core_s3.cc` | **板卡主文件**（★ 改动最大：上游 12KB → 本项目 54KB）。含：状态栏（左 WiFi / 右电量）、LVGL 触摸输入、说话嘴动画驱动、待机转头、传感器反应（摸头/甩晕）、皮肤按钮接线 |
+| `m5stack_core_s3.cc` | **板卡主文件**（★ 改动最大：上游 12KB → 本项目约 60KB）。含：状态栏（左 WiFi / 右电量）、LVGL 触摸输入、说话嘴动画驱动、待机转头（四种动作，yaw+pitch）、传感器反应（摸头/甩晕，**相对当前角度 + 平滑 + 自动还原**）、皮肤按钮接线 |
 | `skin_manager.{cc,h}` | **双皮肤管理**。切皮肤 = 写 NVS + 换 OTA 地址 + 重启；OTA 地址**自动识别**（不写死 IP） |
 | `stackchan_geometry_display.{cc,h}` | **官方几何脸皮肤**。含：情绪映射、说话嘴开合、爱心/晕眩装饰器、`AvatarTick()` 驱动 |
 | `stackchan_sensor.{cc,h}` | **传感器封装**。SI12T 触摸（0x68）+ BMI270 摇晃（**0x69**） |
 | `cores3_py32_led.{cc,h}` | **12 颗 RGB**。挂在 PY32 IO 扩展上，支持每状态「常亮/呼吸」可选 |
-| `cores3_servo.{cc,h}` | **飞特舵机**（SCSCL 协议，UART1 / 1Mbps） |
+| `cores3_servo.{cc,h}` | **飞特舵机**（SCSCL 协议，UART1 / 1Mbps）。含：角度制接口、`MoveSmooth()` 平滑运动、pitch 堵转保护（判据见 ②⑦）、6 个 MCP 工具（免编译调参） |
 | `PY32IOExpander_Class.{cpp,hpp}` | PY32 IO 扩展驱动（★ 上游没有，后缀是 .cpp 需显式加进 CMake） |
 | `config.json` | 板卡配置。**与上游相同**，保留它是因为你要在这里填自己的 `CONFIG_OTA_URL` |
 
@@ -118,6 +118,72 @@ CONFIG_SR_WN_WN9_NIHAOXIAOZHI_TTS=y
 `lcd_display.cc` 里 `LcdDisplay::SetupUI()` 有两份，由
 `CONFIG_USE_WECHAT_MESSAGE_STYLE` 二选一。
 改状态栏时**确认改对了分支**（本项目曾改错分支 ⇒ UI 完全不变）。
+
+### ⑦ 舵机动作别写死「绝对角度」；堵转判定要两个条件同时成立
+
+**改摸头 / 甩晕 / 待机动作的人必看，两处都踩过。**
+
+#### (a) 动作角度要用「当前角度 + 增量」，做完要还原
+
+写死绝对角度（例如摸头直接 `MoveTo(0, 55)`）有三个后果：
+
+- 用户的「开机默认姿势」不是 55° 时，这一下就是把头**猛拽**过去
+- 动作做完**不还原** ⇒ 头一直停在那个角度
+- 待机动作把俯仰写死（`MoveTo(delta, 45)`）⇒ 俯仰永远不动，**只能左右转**
+
+正确做法（照官方 `stackchan/modifiers/head_pet.h`）：
+
+```cpp
+float base_yaw   = servo_->GetYawAngle();     // 先读当前姿势
+float base_pitch = servo_->GetPitchAngle();   // 读失败（返回 -999）用 GetHomePitch() 兜底
+
+float ty = base_yaw + (esp_random() % 17) - 8;                    // 在当前基础上加小增量
+float tp = ClampSoftPitch(base_pitch + 12.0f + (esp_random() % 7));
+
+servo_->MoveSmooth(ty, tp, 300, 360);         // 平滑过去
+pet_restore_at_ = now_ms + 3000;              // 3 秒后（在轮询任务里）平滑还原
+```
+
+官方 `idle_motion.h` 同理，而且给了四种动作（环视 / 小幅张望 / 快速一瞥 / 回正），
+**每一种都同时动 yaw 和 pitch** —— 只动 yaw 会显得很单调。
+
+#### (b) 一次性下发大角度 = 观感生硬
+
+官方是**弹簧动画每 20ms 算一个中间点下发**（`stackchan/motion/servo.cpp`），
+所以动作是「飘过去」的。本项目用等价的轻量做法 `MoveSmooth()`：
+smoothstep 缓动 + 每步 20ms 逐段下发，并用一个代次号让新命令能打断旧循环。
+
+#### (c) ★ 堵转判定必须「位置卡住 + 电流冲高」**同时**成立
+
+官方 `hal_servo.cpp` 的判据是两个条件同时满足：
+
+```
+position_stuck = (本次位置 - 上次位置) <= 1     // 位置没动
+spike          = 电流超阈值 || 负载超阈值
+只有 position_stuck && spike 才计数
+```
+
+**只判电流会怎样**：舵机正常加速阶段的电流上冲被误判成「堵转」⇒
+就地在当前位置急停，还会把这个方向的行程上限**永久收紧**。
+实测表现是「头动到一半突然一顿 / 像被猛拽一把」。
+
+#### (d) 就地停住要给 `Time`，不能只写 `Speed`
+
+飞特 SCS 协议是 `WritePos(id, pos, time, speed)`，
+**`time = 0` 且 `speed = 0` 等于「以最高速运行」**。
+
+```cpp
+bus_->WritePos(kPitchId, cur_raw, 0, 0);    // ❌ 会看到头猛地一冲
+bus_->WritePos(kPitchId, cur_raw, 20, 0);   // ✅ 官方写法
+```
+
+#### 排查提示
+
+机器人在某个动作里「先猛抬一下再动」，按顺序查这三件事：
+
+1. 动作是不是写死了绝对角度（而不是「当前角度 + 增量」）
+2. 堵转判定是不是只看了电流，漏了「位置卡住」
+3. `WritePos` 是不是传了 `0, 0`
 
 ---
 
