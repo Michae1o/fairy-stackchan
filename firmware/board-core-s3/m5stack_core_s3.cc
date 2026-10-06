@@ -8,6 +8,7 @@
 #include "axp2101.h"
 #include "cores3_py32_led.h"   // 12 颗 RGB（PY32 IO 扩展）
 #include "cores3_servo.h"      // 两个飞特总线舵机（UART1）
+#include "cores3_espnow_remote.h"  // ★ 官方 K151-R 遥控器（ESP-NOW 接收）
 #include "stackchan_sensor.h"
 #include "stackchan_geometry_display.h"  // ★ 官方几何脸（第二套皮肤）
 #include "skin_manager.h"      // ★ 皮肤切换（切服务器 + 重启）
@@ -17,6 +18,7 @@
 #include <lvgl.h>
 #include <esp_log.h>
 #include <atomic>
+#include <cmath>          // ★ fabsf（遥控器角度变化判定）
 #include <driver/i2c_master.h>
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
@@ -202,6 +204,11 @@ private:
     PowerSaveTimer* power_save_timer_;
     CoreS3Py32Led* fairy_led_ = nullptr;   // 12 颗 RGB（PY32 IO 扩展）
     CoreS3Servo* servo_ = nullptr;         // yaw/pitch 舵机
+    // ★ 官方 K151-R 遥控器（ESP-NOW 广播收包）
+    //   遥控器 = M5StickC-Plus + 摇杆帽，30ms 一包 8 字节
+    //   ⛔ 设备侧不改 WiFi 信道（peer.channel = 0 跟随）⇒ 与服务器链路无关
+    CoreS3EspNowRemote* espnow_ = nullptr;
+    TaskHandle_t espnow_task_ = nullptr;
     // ★ 几何脸显示（display_ 的实际类型，用于切皮肤）
     //   display_ 保持 LcdDisplay* 以复用框架接口，这里存一份具体类型
     // ★ 传感器（摸头 + 摇晃）与待机小动作任务
@@ -929,6 +936,11 @@ public:
         InitializeFairyRgb();
         InitializeServo();
         InitializeSensors();   // ★ 传感器（摸头/摇晃）+ 待机小动作
+        // ★★ 遥控器（ESP-NOW）【不能在这里初始化】——
+        //   此刻 WiFi 还没 esp_wifi_init()，而 esp_now_init() 在这种状态下
+        //   【不会】优雅返回错误，而是直接崩（LoadProhibited）。
+        //   实测后果（2026-10-06）：开机到这就重启，无限循环 ⇒ 白屏。
+        //   ⇒ 挪到下面的 StartNetwork() 里（那里 WiFi 模块一定已就绪）。
         // ★ 皮肤：读 NVS 决定默认显示哪套（几何脸要在 UI 建好后才能挂）
         //   这里只注册 MCP 工具 + 记下皮肤；实际切换在 SetupUI 之后
         stackchan_skin::RegisterMcpTools();
@@ -1040,8 +1052,28 @@ public:
                         if (self->sensor_->TakePetEvent()) {
                             self->ReactPet();
                         }
+                        // ★★ 2026-10-06 用户反馈：「用遥控器控头会触发甩晕，左右扭头」
+                        //   根因：甩晕靠 IMU 加速度突变判断（stackchan_sensor.cc：
+                        //   diff > shake_threshold_，1 秒窗口内累计 3 次才触发），
+                        //   但遥控器驱动舵机快速转动时，机身的反作用力同样会让 IMU
+                        //   出现这种突变 ⇒ 被误判成「有人在甩」。
+                        //   ⛔ 调大阈值解决不了：真甩的加速度一样大，调大等于废掉甩晕。
+                        //   这是【控制来源冲突】，按来源抑制才对。
+                        //   修法：遥控器活跃（1.5 秒内收到过包）时不判定甩晕。
+                        //   ⇒ 放下遥控器（等 1.5 秒）照样能甩晕，功能没丢。
                         if (self->sensor_->TakeShakeEvent()) {
-                            self->ReactShake();
+                            bool remote_active = false;
+                            if (self->espnow_ != nullptr) {
+                                int64_t last = self->espnow_->LastPacketMs();
+                                remote_active =
+                                    (last != 0) &&
+                                    (esp_timer_get_time() / 1000 - last) < 1500;
+                            }
+                            if (!remote_active) {
+                                self->ReactShake();
+                            } else {
+                                ESP_LOGD(TAG, "遥控器活跃中，跳过甩晕判定");
+                            }
                         }
                     }
                     // ★ 摸头满 3 秒后，平滑还原到「摸之前」的姿势
@@ -1091,6 +1123,15 @@ public:
                     // 正在做摸头/甩晕反应时别插一脚
                     if (self->motion_busy_.load()) {
                         continue;
+                    }
+                    // ★ 用户正在用遥控器控头时别插一脚
+                    //   （3 秒内收到过遥控器包 ⇒ 让路，免得抢舵机）
+                    if (self->espnow_ != nullptr) {
+                        int64_t last = self->espnow_->LastPacketMs();
+                        if (last != 0 &&
+                            (esp_timer_get_time() / 1000 - last) < 3000) {
+                            continue;
+                        }
                     }
                     if (Application::GetInstance().GetDeviceState() !=
                         kDeviceStateIdle) {
@@ -1257,9 +1298,13 @@ public:
         if (display != nullptr) {
             display->SetEmotion("happy");
         }
-        // ★ 冒爱心（用户要求：「冒爱心」）
+        // ★ 冒爱心 + 脸红（用户要求：「冒爱心」；官方摸头时这两个是一起冒的
+        //   —— head_pet.h L90/L91 同一句里连加两个装饰器）
+        //   ⛔ 两个方法内部都判 geometry_visible_ ⇒ 只在【官方小智皮肤】上出现，
+        //      Fairy 皮肤下不会冒任何东西
         if (geometry_display_ != nullptr) {
             geometry_display_->ShowHeart();
+            geometry_display_->ShowShy();
         }
 
         if (servo_ == nullptr || !servo_->IsReady()) {
@@ -1342,14 +1387,142 @@ public:
                  base_yaw, base_pitch);
     }
 
+    // ═══════════════ 官方遥控器（K151-R / ESP-NOW）═══════════════
+    //
+    // ★ 遥控器是什么、协议是什么 ⇒ 见 cores3_espnow_remote.h 顶部注释
+    //   （实读官方 official-stackchan/remote/ 源码，不是猜的）
+    //
+    // ★ 本函数只做两件事：
+    //   ① 起 ESP-NOW 接收（内部会等 WiFi 连上再初始化 —— 信道要先确定）
+    //   ② 起消费任务：角度送舵机、BtnB 接到对话开关
+    //
+    // ⛔ 收包回调跑在 WiFi 任务上下文 ⇒ 那里只解析 + 置标志，
+    //    绝不碰 LVGL / UART / 舵机（会拖垮 WiFi，音频也会断）
+    // ⛔ 设备侧一个字节都不动 WiFi 信道（peer.channel = 0 跟随）
+    //    ⇒ 不会影响设备连服务器
+    //   代价 = 遥控器 SETUP 页的 Channel 要调到与路由器一致（日志会打印）
+    void InitializeEspNowRemote() {
+        espnow_ = new CoreS3EspNowRemote();
+        if (!espnow_->Start()) {
+            ESP_LOGW(TAG, "遥控器接收未启动");
+            return;
+        }
+
+        xTaskCreate(
+            [](void* arg) {
+                auto* self = static_cast<M5StackCoreS3Board*>(arg);
+                float last_yaw   = -999.0f;
+                float last_pitch = -999.0f;
+                while (true) {
+                    CoreS3EspNowRemote::Command cmd;
+                    if (self->espnow_ != nullptr &&
+                        self->espnow_->TakeCommand(&cmd)) {
+                        if (self->servo_ != nullptr && self->servo_->IsReady()) {
+                            // ★ 变化 ≥1.0° 才下发：遥控器 30ms 一包，
+                            //   不判变化会把舵机 UART 打满（舵机也来不及跟）
+                            // ★ 1.0° 起步才下发（原来是 0.5°）：
+                            //   0.5° 时摇杆的轻微漂移会一直触发下发，舵机跟着抖
+                            //   （用户反馈「动起来偶尔会抖」）。1° 肉眼看不出延迟。
+                            if (fabsf(cmd.yaw_deg - last_yaw) >= 1.0f ||
+                                fabsf(cmd.pitch_deg - last_pitch) >= 1.0f) {
+                                last_yaw   = cmd.yaw_deg;
+                                last_pitch = cmd.pitch_deg;
+                                self->servo_->MoveTo(cmd.yaw_deg,
+                                                     cmd.pitch_deg,
+                                                     cmd.speed);
+                            }
+                        }
+                    }
+
+                    // ★ BtnB 按下 = 开/关对话（与按屏幕上的对话键同一个入口）
+                    if (self->espnow_ != nullptr &&
+                        self->espnow_->TakeButtonPress()) {
+                        ESP_LOGI(TAG, "遥控器 BtnB → 切换对话状态");
+                        Application::GetInstance().ToggleChatState();
+                    }
+
+                    vTaskDelay(pdMS_TO_TICKS(20));
+                }
+            },
+            "espnow_rx", 3072, this, 2, &espnow_task_);
+    }
+
+    // ═══════════ 遥控器（ESP-NOW）初始化时机 ═══════════
+    //
+    // ★★ 教训（2026-10-06 实测踩到，设备白屏 + 重启循环 26 次）：
+    //   最初把 InitializeEspNowRemote() 放在【构造函数】里，并让后台任务
+    //   「轮询 esp_now_init() 直到它返回 ESP_OK —— WiFi 未就绪时应返回
+    //    ESP_ERR_WIFI_NOT_INIT」。**这个假设是错的**：
+    //   在 esp_wifi_init() 之前调 esp_now_init() 不会优雅返回错误，
+    //   而是直接 LoadProhibited 崩溃（EXCVADDR 0x4c，addr2line 指向 esp_now_init）。
+    //
+    //   正解 = 在这里初始化：StartNetwork() 内部先走
+    //   WifiManager::Initialize() → esp_wifi_init()（wifi_manager.cc:90），
+    //   之后才回来 ⇒ 此处 WiFi 模块【一定】已就绪。
+    //   而且【不要求连上】—— 没配网 / 路由器没开也照样初始化，
+    //   射频待在默认信道 1，遥控器保持出厂 1 就能用。
+    virtual void StartNetwork() override {
+        WifiBoard::StartNetwork();     // 内部 esp_wifi_init + 开始连接 / 进配网
+        InitializeEspNowRemote();      // ★ 现在才安全
+    }
+
     void InitializeServo() {
         servo_ = new CoreS3Servo();
-        if (servo_->Init()) {
+        bool ok = servo_->Init();
+
+        // ★ 2026-09-26 修「每次重启电脑后调不了角度」：
+        //   设备由 PC 的 USB 供电 ⇒ 电脑一重启，设备跟着断电重启。那次开机
+        //   PY32 IO 扩展刚上电、舵机自己的控制芯片启动又比 ESP32 慢，
+        //   原来【只探测一次、零延时】⇒ 读不到位置就判定失败 ⇒ 那 6 个舵机
+        //   动作根本不注册 ⇒ AI 得到「动作通道里没有角度接口」。
+        //   现在：重新使能舵机供电 + 延时重试（最多约 5 轮 ≈ 8 秒）。
+        for (int round = 0; round < 5 && !ok; round++) {
+            if (fairy_led_ != nullptr) {
+                fairy_led_->EnableServoPower();
+            }
+            vTaskDelay(pdMS_TO_TICKS(400));
+            ok = servo_->ProbeRetry(3, 250);
+            ESP_LOGW(TAG, "servo 重试第 %d 轮: %s", round + 1,
+                     ok ? "成功" : "仍失败");
+        }
+
+        if (ok) {
             servo_->RegisterMcpTools();   // 让 AI 能控制转头
             ESP_LOGI(TAG, "servo ready, MCP tools registered");
         } else {
             ESP_LOGW(TAG, "servo init failed (check wiring / servo power)");
+            // ★ 还不成就在后台继续补试：成了就补注册动作，用户不必拔电重启。
+            StartServoRecoverTask();
         }
+    }
+
+    // ★ 后台补试舵机（只在开机那几轮都失败时才起）
+    //   进了这个任务说明开机时舵机没探到；这里每 5 秒再试一次，最多 12 次
+    //   （约 1 分钟）。一旦探到就【补注册 MCP 动作】——工具是运行时可加的，
+    //   服务器每次连接都会重新问一遍动作清单，所以下一次唤醒就能用了。
+    void StartServoRecoverTask() {
+        if (servo_ == nullptr) {
+            return;
+        }
+        xTaskCreate(
+            [](void* arg) {
+                auto* self = static_cast<M5StackCoreS3Board*>(arg);
+                for (int i = 0; i < 12; i++) {
+                    vTaskDelay(pdMS_TO_TICKS(5000));
+                    if (self->servo_ == nullptr || self->servo_->IsReady()) {
+                        break;
+                    }
+                    if (self->fairy_led_ != nullptr) {
+                        self->fairy_led_->EnableServoPower();
+                    }
+                    if (self->servo_->ProbeRetry(2, 200)) {
+                        self->servo_->RegisterMcpTools();
+                        ESP_LOGI(TAG, "servo 后台补试成功，MCP 动作已补注册");
+                        break;
+                    }
+                }
+            },
+            "servo_recover", 3072, this, 2, nullptr);
     }
 
     virtual AudioCodec* GetAudioCodec() override {

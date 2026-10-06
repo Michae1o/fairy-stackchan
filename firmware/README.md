@@ -28,7 +28,8 @@
 |---|---|
 | `m5stack_core_s3.cc` | **板卡主文件**（★ 改动最大：上游 12KB → 本项目约 60KB）。含：状态栏（左 WiFi / 右电量）、LVGL 触摸输入、说话嘴动画驱动、待机转头（四种动作，yaw+pitch）、传感器反应（摸头/甩晕，**相对当前角度 + 平滑 + 自动还原**）、皮肤按钮接线 |
 | `skin_manager.{cc,h}` | **双皮肤管理**。切皮肤 = 写 NVS + 换 OTA 地址 + 重启；OTA 地址**自动识别**（不写死 IP） |
-| `stackchan_geometry_display.{cc,h}` | **官方几何脸皮肤**。含：情绪映射、说话嘴开合、爱心/晕眩装饰器、`AvatarTick()` 驱动 |
+| `stackchan_geometry_display.{cc,h}` | **官方几何脸皮肤**。含：情绪映射、说话嘴开合、**五个装饰器**（爱心 / 脸红 / 晕眩 / 怒符 / 汗滴）、`AvatarTick()` 驱动 |
+| `cores3_espnow_remote.{cc,h}` | ★ **官方 K151-R 遥控器的接收端**（v1.1 新增）。裸 ESP-NOW 收包、8 字节协议解析、信道读取 + 应答探测包。⛔ 初始化只能在 `esp_wifi_init()` 之后 —— 放构造函数里不会报错，会**直接崩**（白屏重启循环） |
 | `stackchan_sensor.{cc,h}` | **传感器封装**。SI12T 触摸（0x68）+ BMI270 摇晃（**0x69**） |
 | `cores3_py32_led.{cc,h}` | **12 颗 RGB**。挂在 PY32 IO 扩展上，支持每状态「常亮/呼吸」可选 |
 | `cores3_servo.{cc,h}` | **飞特舵机**（SCSCL 协议，UART1 / 1Mbps）。含：角度制接口、`MoveSmooth()` 平滑运动、pitch 堵转保护（判据见 ②⑦）、6 个 MCP 工具（免编译调参） |
