@@ -23,6 +23,8 @@
 - A **USB‑C data cable** (one that carries data, not charge-only)
 - **2.4 GHz WiFi** (ESP32 does not support 5 GHz)
 - A computer (Windows / macOS / Linux all work; this doc uses Windows as the example)
+- *(optional)* the official **K151-R remote** (M5StickC‑Plus + joystick cap), if you want to steer
+  the head by hand — it talks to the device over ESP‑NOW, so it needs neither your router nor WiFi
 
 ### 0.2 Software
 
@@ -618,6 +620,70 @@ python -m esptool --chip esp32s3 -p <port> read-flash 0 0x1000000 factory-backup
 # to go back to factory: write the backup back over the whole chip
 python -m esptool --chip esp32s3 -p <port> -b 460800 write-flash 0x0 factory-backup.bin
 ```
+
+**★ There is also a remote controller (optional, new in v1.1)**
+
+The official **K151-R** (M5StickC‑Plus + joystick cap), once flashed with `remote-fairy-0x0.bin`,
+steers the head with its joystick and toggles chat with its B button. It talks over **ESP‑NOW**,
+so it needs **neither your router nor an internet connection**.
+
+⚠️ **On Windows you have to install the FTDI driver first** — this is the step people get stuck on.
+**Windows does not ship this driver, and Device Manager's "Search automatically" cannot find it
+either** (Microsoft never put it into Windows Update). What it looks like without the driver:
+
+```text
+Device Manager → "Other devices" → a device named M5stack   ← yellow "!"
+its Problem Code = 28                                       ← 28 = no driver installed
+"Ports (COM & LPT)" shows only the motherboard's COM1       ← no USB Serial Port
+flashing then fails with:  Failed to connect ... No serial data received
+```
+
+This is **not** a cable problem — the data link works (Windows reads the name "M5stack");
+what's missing is just the driver. The steps:
+
+```text
+① Fetch the driver (from the Microsoft Update Catalog — do NOT just grab one):
+
+       python3 tools/fetch-ftdi-driver.py
+
+   ★ Why not any package: Microsoft split the FTDI driver into several per-chip packages whose
+     titles all look identical, and this remote is an FT232R (USB\VID_0403&PID_6001).
+     The script unpacks them all and keeps the one whose .inf really lists that ID --
+     any other package installs fine but will not bind.
+
+② Install it, either way:
+       double-click tools\install-ftdi-driver.bat        (it requests admin by itself)
+   or manually:
+       Device Manager → right-click the M5stack item under "Other devices"
+       → Update driver → **Browse my computer for drivers**
+       → point it at the folder from ① → Next
+   Do NOT pick "Search automatically for drivers" -- that road is a dead end.
+
+   It worked when: Device Manager → "Ports (COM & LPT)" shows **USB Serial Port (COMx)**.
+
+③ Flash the remote (note the baud rate -- it is not the usual 921600):
+
+       python -m esptool --chip esp32 -p <the remote's port> -b 1500000 \
+           --before default-reset --after hard-reset \
+           write-flash 0x0 remote-fairy-0x0.bin
+   Do not put COM1 there -- that is the motherboard's old serial port.
+```
+
+**Using it**: power on the remote (side button) → push the joystick to steer the head →
+press Start (the B button) to toggle chat once. It scans channels on boot (~1 s), and if you
+later switch routers or phone hotspots it follows within 3 s — there is nothing to configure.
+
+Two behaviours that are **by design** (not bugs):
+
+- releasing the joystick returns the head to its **boot position** — the stick sends absolute
+  angles. To change that position, say *"save this pose as the boot default"* to the device.
+- steering the head **will not** trigger the shake/dizzy reaction. The device detects a "shake"
+  from the IMU, and the servos moving fast would otherwise look exactly like one; the firmware
+  suppresses it by source (let go of the remote for 1.5 s and shaking it by hand works again).
+
+**Full write-up** — the four-step driver install with six failure symptoms and fixes, plus how to
+build the remote firmware yourself (it needs **ESP‑IDF 5.4.2**, not the 6.1 used for the device):
+see [`../firmware-bin/README.md`](../firmware-bin/README.md) **§8** (Chinese).
 
 ### 2.6 Confirm on the device (firmware only counts as OK once this passes)
 
