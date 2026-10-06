@@ -76,7 +76,9 @@ if(BOARD_DIR STREQUAL "m5stack/core-s3")
 endif()
 '''
 
-PRIV_EXTRA = ["lvgl", "smooth_ui_toolkit", "mooncake", "mooncake_log"]
+# ★ esp_wifi：官方遥控器接收端（ESP-NOW）要用 esp_now.h / esp_wifi.h
+#   ⛔ 不列在这里 ⇒ 编译期直接 fatal error: esp_now.h: No such file
+PRIV_EXTRA = ["lvgl", "smooth_ui_toolkit", "mooncake", "mooncake_log", "esp_wifi"]
 PRIV_ANCHOR = "                        xiaozhi-fonts\n"
 
 # ── 表情别名表（和本项目一致：23 种情绪 → idle，thinking → thinking）──

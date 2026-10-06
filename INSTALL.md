@@ -570,6 +570,32 @@ python -m esptool --chip esp32s3 -p <串口> read-flash 0 0x1000000 factory-back
 python -m esptool --chip esp32s3 -p <串口> -b 460800 write-flash 0x0 factory-backup.bin
 ```
 
+**★ 还有一台遥控器（可选，v1.1 新增）**
+
+官方 **K151-R**（M5StickC-Plus + 摇杆帽）刷上 `remote-fairy-0x0.bin` 之后，
+可以推摇杆控头 + 按 B 键开关对话 —— 走 ESP-NOW，**不依赖路由器、不依赖有没有网**。
+
+```text
+⚠️ Windows 上先装 FTDI 驱动（Windows 不自带，遥控器是 FTDI 芯片；
+   而设备管理器里的「自动搜索」也找不到 —— 微软没放进 Windows Update）：
+
+     python3 tools/fetch-ftdi-driver.py
+     → 设备管理器 → 右键那台带感叹号的 M5stack（在其他设备下）
+     → 更新驱动程序 →【浏览我的电脑以查找驱动程序】
+     → 指向脚本解出来的目录
+     成功标志：端口 (COM 和 LPT) 下出现 USB Serial Port (COMx)
+
+刷：
+     python -m esptool --chip esp32 -p <遥控器的串口> -b 1500000 \
+         --before default-reset --after hard-reset \
+         write-flash 0x0 remote-fairy-0x0.bin
+     ★ 波特率 1500000（不是 921600）；★ 别填 COM1，那是主板的口
+```
+
+完整说明（协议、两个「看着像坏了其实不是」的现象、排错、源码怎么改）见
+[`../firmware-bin/README.md`](../firmware-bin/README.md) **第八节**。
+想自己编遥控器固件要注意：改动基于官方遥控器工程，且**要用 ESP-IDF 5.4.2 编**（不是设备那个 6.1）。
+
 ### 2.6 设备端确认（这一步过了才算固件 OK）
 
 `idf.py monitor` 里依次看到：

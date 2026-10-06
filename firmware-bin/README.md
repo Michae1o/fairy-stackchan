@@ -33,10 +33,16 @@
 https://github.com/Michae1o/fairy-stackchan/releases/latest
     ⇒ 找 fairy-stackchan-universal.bin 下载
 
-文件名：fairy-stackchan-universal.bin
+【设备固件】fairy-stackchan-universal.bin
 大小：  12,466,209 字节（约 11.9 MB）
 芯片：  ESP32-S3（整机合并固件，烧到 0x0）
-md5：   034b0b58516625017e382d29341e83fc
+md5：   72dfc706a0e9c1a8f1365375679245fd      ← v1.1（2026-10-06）
+
+【遥控器固件】remote-fairy-0x0.bin
+大小：  1,233,840 字节（约 1.18 MB）
+芯片：  ESP32（M5StickC-Plus 用；整机合并固件，烧到 0x0）
+md5：   85c09e8d22fabf418a607a43ec33e020
+刷法见第八节（⚠️ Windows 上要先装 FTDI 驱动）
 ```
 
 > 下载后建议校验：`certutil -hashfile fairy-stackchan-universal.bin MD5`（Windows）
@@ -266,3 +272,115 @@ M5Burner 需去官网下载安装（<https://docs.m5stack.com/zh_CN/download>）
 
 见 [../INSTALL.md](../INSTALL.md)（拉上游 → 用 `tools/apply_to_upstream.py` 打改动 → 编译）。
 想连第三步都省掉，可以把服务器地址编进固件（路径 A），但那之后就**别公开分发**了。
+
+---
+
+## 八、★ 遥控器（v1.1 新增）
+
+> 设计目标不是「能用就行」，而是**不依赖路由器、不依赖有没有网，拿起就能用**。
+> 所以遥控器**自己挨个信道找设备** —— 不用配对、不用装 App、不用管你家 WiFi 在哪个信道。
+
+### 8.1 遥控器是什么
+
+官方 **K151-R** = 一台 **M5StickC-Plus** + 一个**摇杆帽**（Mini JoyC）。
+它靠 **ESP-NOW** 点对点 2.4G 跟 StackChan 说话 —— **不经过 WiFi、不经过路由器**。
+
+### 8.2 先刷遥控器固件
+
+⚠️ **这一步最容易卡的其实不是固件，是 Windows 的驱动。** 先看 8.2.1。
+
+#### 8.2.1 ⚠️ Windows 上必须先装 FTDI 驱动
+
+遥控器用的是一颗 **FTDI** USB 转串口芯片。**Windows 不自带它的驱动**，
+FTDI 官网又有 Cloudflare 人机验证（脚本抓不动）。没装驱动时的样子：
+
+```text
+设备管理器 → 其他设备 → M5stack        ← 带黄色感叹号
+它的 ProblemCode = 28                  ← 28 = 没装驱动
+系统里只有 COM1（主板自带的老式通信口），没有遥控器的 COM 口
+```
+
+**这不是线的问题**：数据是通的（电脑能读出「它叫 M5stack」），缺的是「翻译」。
+※ 也别走「更新驱动 → 自动搜索」—— 微软**没把这个驱动放进 Windows Update**。
+
+装法（推荐 A）：
+
+```text
+A. 用本仓库的脚本从【微软官方驱动库】取（不碰被墙的官网）
+      python3 tools/fetch-ftdi-driver.py
+   ★ 为什么不能随便下：微软按【芯片型号】把 FTDI 驱动拆成了好几个包，
+     遥控器是 FT232R = USB\VID_0403&PID_6001 ⇒ 必须挑认这个硬件 ID 的那个，
+     否则装上也不认（脚本会自动逐个解开、只挑对的）。
+   装：解压出来的目录 → 设备管理器 → 右键那个带感叹号的 M5stack
+       → 更新驱动程序 →【浏览我的电脑以查找驱动程序】→ 指向该目录
+       （★ 是「浏览我的电脑」，不是「自动搜索」）
+B. 从官网下（浏览器里手动过 Cloudflare 验证）
+      https://ftdichip.com/drivers/vcp-drivers/  →  CDM21228_Setup.exe
+C. 有别的机器已经装过 ⇒ 直接把驱动目录拷过来
+```
+
+**装成功的标志**：`设备管理器 → 端口 (COM 和 LPT) → USB Serial Port (COMx)`
+
+#### 8.2.2 刷机
+
+```bash
+# 波特率 1500000（这套遥控器的官方刷机波特率，不是 921600）
+python -m esptool --chip esp32 -p COM4 -b 1500000 \
+    --before default-reset --after hard-reset \
+    write-flash 0x0 "remote-fairy-0x0.bin"
+```
+
+（端口换成你实际看到的那个 —— **别填 COM1**，那是主板的口。）
+
+### 8.3 怎么用
+
+```text
+① 遥控器开机（按侧键）
+② 推摇杆 → 头跟着转
+③ 按 Start（B 键）→ 开/关一次对话（和按屏幕上的对话键同一个入口）
+```
+
+开机约 1 秒扫完所有信道找到设备；屏幕上 `Channel:` 会变成设备所在的信道。
+（`ReceiverID` 是目标设备编号，只有一台设备时就是 0，不用管它。）
+
+**设备换路由器 / 换手机热点** ⇒ 遥控器 3 秒内自己跟上，**你什么都不用调**。
+
+### 8.4 两个「看着像坏了、其实不是」的现象
+
+| 现象 | 原因 | 怎么办 |
+|---|---|---|
+| **松开摇杆，头自己回到原位** | 摇杆发的是**位置**指令（推多远 = 转到哪个角度），松手就是回中位 | 把**开机默认位**改成你看着舒服的角度：对设备说「**把现在这个姿势设为开机默认**」 |
+| **控头时突然左右扭头（像晕了）** | 设备靠陀螺仪判断「被甩」，而舵机快速转动会让陀螺仪出现一模一样的读数 | 固件已按**来源**屏蔽：遥控器活跃时不判甩晕。放下遥控器等 1.5 秒，用手甩它照样会晕 |
+
+### 8.5 排错
+
+```text
+刷机报「No serial data received」
+  ⇒ 99% 是没装 FTDI 驱动（见 8.2.1）。换线没用。
+
+设备管理器里那个 M5stack 一直带感叹号
+  ⇒ 缺驱动，或装错了包（要认 VID_0403&PID_6001）
+
+刷进去了，推摇杆没反应
+  ⇒ ① 看遥控器屏幕 Channel 有没有值（空 = 还没找到设备）
+  ⇒ ② 设备是不是正常开机了（屏幕有表情、舵机能动）
+  ⇒ ③ 遥控器电量
+
+用着有时断
+  ⇒ 若串口/屏幕出现「链路抖一下」之类，那是设备连【服务器】那条链路的事，
+     跟遥控器无关 —— 遥控器走 ESP-NOW，压根不经过 WiFi。
+```
+
+### 8.6 想自己编遥控器固件
+
+改动集中在官方遥控器工程（`official-stackchan/remote`）的三处：
+
+```text
+· esp_now_init.c / .h                 —— 改成裸 ESP-NOW + 开机扫信道找设备
+· joystick_handle.c                   —— RUNNING 模式下先确认设备位置，再发指令
+· StackChan-RemoteControl-ESPNow.cpp  —— 切 RUNNING 时重新找设备
+```
+
+⚠️ **遥控器要用 ESP-IDF 5.4.2 编**（不是设备那个 6.1）：
+IDF 6.x 移除了 legacy `driver/i2c.h`，而遥控器 UI 用的 M5GFX 还依赖它。
+两套 IDF 可以并存。

@@ -203,7 +203,7 @@ void StackChanGeometryDisplay::TickMouth() {
     avatar_->mouth().setWeight(w);
 }
 
-// ── 装饰器：摸头冒爱心 / 甩晕（用户要求）────────────────────
+// ── 装饰器：摸头冒爱心/脸红、甩晕、情绪怒/汗 ─────────────────
 //
 // ★ 为什么之前"没做"：
 //   官方装饰器（HeartDecorator / DizzyDecorator / Shy / Sweat / Angry）
@@ -212,10 +212,32 @@ void StackChanGeometryDisplay::TickMouth() {
 //   这是"漏接线"，不是"做不到"。
 //
 // ★ 官方签名（读 decorators.h）：
-//     HeartDecorator(lv_obj_t* parent, uint32_t destroyAfterMs = 0,
-//                    uint32_t animationIntervalMs = 500);
-//     avatar.addDecorator(std::unique_ptr<Decorator>(...))
+//     HeartDecorator (lv_obj_t* parent, uint32_t destroyAfterMs = 0,
+//                     uint32_t animationIntervalMs = 500);
+//     AngryDecorator (…, 500 默认)   SweatDecorator (…, 700 默认)
+//     ShyDecorator   (lv_obj_t* parent, uint32_t destroyAfterMs = 0)  ← 无动画参数
+//     avatar.addDecorator(std::unique_ptr<Decorator>(...))  → int id
+//     avatar.removeDecorator(int id)
 //   destroyAfterMs = 生命周期（到点自动销毁，避免堆积）
+//
+// ⛔⛔ 五个方法全部【只作用于几何脸（官方小智皮肤）】：
+//     判 geometry_visible_ + parent 传 geometry_root_
+//     ⇒ Fairy 皮肤下不建对象、不显示。
+//
+// ★ 统一的 3 步写法（照官方 head_pet.h）：
+//     ① 加锁（LVGL 非线程安全，必须）
+//     ② 重触发时【先撤旧的】—— 否则情绪反复下发会叠一堆
+//     ③ addDecorator 并把返回的 id 记下来，下次撤它
+
+// ── 内部小工具：撤掉同类的旧装饰器 ──
+static inline void DropIfAny(std::unique_ptr<stackchan::avatar::DefaultAvatar>& av,
+                             int& id) {
+    if (id >= 0) {
+        av->removeDecorator(id);
+        id = -1;
+    }
+}
+
 void StackChanGeometryDisplay::ShowHeart() {
     DisplayLockGuard lock(this);
     if (avatar_ == nullptr || !geometry_visible_) {
@@ -225,9 +247,25 @@ void StackChanGeometryDisplay::ShowHeart() {
     //   ⇒ 回退到【官方 HeartDecorator】（原地心跳跳动）
     //   参数对齐官方 heart.cpp：动画 500ms 一跳（150°/200° 来回）
     //   存活 1.5 秒后自动销毁（靠 AvatarTick → cleanup）
-    avatar_->addDecorator(
+    DropIfAny(avatar_, heart_id_);
+    heart_id_ = avatar_->addDecorator(
         std::make_unique<HeartDecorator>(geometry_root_, 1500, 500));
     ESP_LOGI(TAG, "冒爱心");
+}
+
+void StackChanGeometryDisplay::ShowShy() {
+    DisplayLockGuard lock(this);
+    if (avatar_ == nullptr || !geometry_visible_) {
+        return;
+    }
+    // ★ 官方摸头时是【爱心 + 腮红一起冒】（head_pet.h L90/L91），
+    //   本项目照抄 —— 所以摸头会同时看到心跳和两张脸红。
+    //   ShyDecorator 是两张图（左 -108,28 / 右 +108,28），
+    //   颜色 0xF7A59E（官方默认），无动画、有生命周期。
+    DropIfAny(avatar_, shy_id_);
+    shy_id_ = avatar_->addDecorator(
+        std::make_unique<ShyDecorator>(geometry_root_, 2000));
+    ESP_LOGI(TAG, "脸红");
 }
 
 void StackChanGeometryDisplay::ShowDizzy() {
@@ -237,9 +275,38 @@ void StackChanGeometryDisplay::ShowDizzy() {
     }
     // ★ 参数对齐官方 dizzy.cpp（动画间隔走官方默认，转圈才明显）
     //   存活 2 秒后自动销毁
-    avatar_->addDecorator(
+    DropIfAny(avatar_, dizzy_id_);
+    dizzy_id_ = avatar_->addDecorator(
         std::make_unique<DizzyDecorator>(geometry_root_, 2000, 300));
     ESP_LOGI(TAG, "转圈晕眩");
+}
+
+void StackChanGeometryDisplay::ShowAngry() {
+    DisplayLockGuard lock(this);
+    if (avatar_ == nullptr || !geometry_visible_) {
+        return;
+    }
+    // ★ 官方【没有】任何调用点（只有类定义）⇒ 触发时机由本项目定：
+    //   接在服务器下发的情绪上（SetEmotion → "angry"）。
+    //   官方默认：颜色 0xFDB034，位置 (108,-70)（右上角），
+    //   动画帧 150°/200° 来回 —— 参数全走官方默认，只是给个生命周期。
+    DropIfAny(avatar_, angry_id_);
+    angry_id_ = avatar_->addDecorator(
+        std::make_unique<AngryDecorator>(geometry_root_, 2500, 500));
+    ESP_LOGI(TAG, "冒怒符");
+}
+
+void StackChanGeometryDisplay::ShowSweat() {
+    DisplayLockGuard lock(this);
+    if (avatar_ == nullptr || !geometry_visible_) {
+        return;
+    }
+    // ★ 同 Angry：官方自己没接，本项目接在「难过/委屈」的情绪上。
+    //   官方默认动画间隔 700ms，走官方默认值。
+    DropIfAny(avatar_, sweat_id_);
+    sweat_id_ = avatar_->addDecorator(
+        std::make_unique<SweatDecorator>(geometry_root_, 2500, 700));
+    ESP_LOGI(TAG, "冒汗");
 }
 
 // ★★★ 驱动 avatar 每帧更新（装饰器动画 + 自动销毁）
@@ -292,16 +359,29 @@ void StackChanGeometryDisplay::SetEmotion(const char* emotion) {
 
     if (geometry_visible_) {
         // 几何脸模式：用官方几何脸自己的表情
-        DisplayLockGuard lock(this);
-        if (avatar_) {
-            avatar_->setEmotion(ToEmotionEnum(norm));
+        {
+            DisplayLockGuard lock(this);
+            if (avatar_) {
+                avatar_->setEmotion(ToEmotionEnum(norm));
+                // 睡觉时顺带给个台词（官方也是这么做的）
+                if (strcmp(norm, "sleepy") == 0) {
+                    avatar_->setSpeech("Zzz…");
+                } else {
+                    avatar_->clearSpeech();
+                }
+            }
         }
-        // 睡觉时顺带给个台词（官方也是这么做的）
-        if (strcmp(norm, "sleepy") == 0) {
-            avatar_->setSpeech("Zzz…");
-        } else {
-            avatar_->clearSpeech();
+        // ★ 情绪装饰器（官方自己没接线，本项目接上）
+        //   ⛔ 必须在锁【外】调用 —— ShowXxx 内部自己加 DisplayLockGuard，
+        //      套着锁再调会二次加锁
+        //   ⛔ 只在几何脸分支里接 ⇒ Fairy 皮肤不受影响
+        if (strcmp(norm, "angry") == 0) {
+            ShowAngry();     // 服务器下发 angry → 头顶怒符
+        } else if (strcmp(norm, "sad") == 0) {
+            ShowSweat();     // 服务器下发 sad/crying → 冒冷汗
         }
+        // 注：doubtful 不挂装饰器 —— 那是「甩晕」用的情绪，
+        //     挂汗滴会和转圈晕眩抢画面
         return;
     }
 

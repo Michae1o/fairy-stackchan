@@ -67,13 +67,27 @@ public:
     void SetSpeaking(bool speaking);  // 说话开始/结束
     bool IsSpeaking() const { return speaking_; }
 
-    // ★ 装饰器（用户要求：「摸头冒爱心」「甩晕」）
-    //   HeartDecorator / DizzyDecorator 的代码早已在 stackchan_avatar/decorators/
-    //   里，但从没被调用过 ⇒ 这就是"爱心/甩晕没做"的真因。
-    //   接口：avatar.addDecorator(std::unique_ptr<Decorator>)
-    //   ⇒ 这里封装成两个方法，由板卡的反应函数调用。
-    void ShowHeart();   // 摸头 → 冒爱心
-    void ShowDizzy();   // 摇晃 → 转圈晕眩
+    // ★ 装饰器 —— 官方 modifier 的「视觉反馈」层
+    //   官方 5 个装饰器（Heart / Shy / Dizzy / Angry / Sweat）的代码与素材
+    //   早已在 stackchan_avatar/decorators/ 并已编进固件，
+    //   此前【从没有任何地方调用 addDecorator()】⇒ 永远不显示（漏接线）。
+    //   ⇒ 这里逐个封装成方法，由板卡反应函数 / 情绪下发调用。
+    //
+    //   ⛔⛔ 全部只作用于【几何脸（官方小智皮肤）】——
+    //     ① 内部判 `geometry_visible_`（Fairy 皮肤下直接 return，不建对象）
+    //     ② parent 传 `geometry_root_`（几何脸容器）⇒ 随容器一起显隐
+    //     ⇒ 与 Fairy 皮肤【完全不搭边】，两套皮肤互不干扰。
+    //
+    //   ★ 官方各自用在哪（读 official-stackchan/firmware/main/stackchan/）：
+    //     · 摸头：Heart + Shy 一起冒（head_pet.h L90/L91 同一句里连加两个）
+    //     · 摇晃：Dizzy（imu.h）
+    //     · Angry / Sweat —— 官方【自己也没接线】（全仓库只有类定义、0 调用点）
+    //       ⇒ 本项目接在「服务器下发的情绪」上（见 SetEmotion）
+    void ShowHeart();   // 摸头   → 冒爱心
+    void ShowShy();     // 摸头   → 脸红（官方就是跟爱心同时冒）
+    void ShowDizzy();   // 摇晃   → 转圈晕眩
+    void ShowAngry();   // 情绪 angry → 头顶怒符
+    void ShowSweat();   // 情绪 sad   → 冒冷汗
 
     // ★★★ 驱动 avatar 的每帧更新 —— 装饰器动画与自动销毁的唯一入口
     //   官方：stackchan.h L136 `_avatar->update();`（主循环每帧调）
@@ -96,6 +110,15 @@ private:
 
     // ★ 官方几何脸（stackchan::avatar::DefaultAvatar）
     std::unique_ptr<stackchan::avatar::DefaultAvatar> avatar_;
+
+    // ★ 装饰器 id（-1 = 当前没有）—— 重触发时【先撤旧的再挂新的】
+    //   官方 head_pet.h 就是这么做的（removeDecorator 后紧跟 addDecorator）。
+    //   ⛔ 不这么做：情绪反复下发会一层层叠上去，满屏都是怒符/汗滴
+    int heart_id_ = -1;
+    int shy_id_   = -1;
+    int dizzy_id_ = -1;
+    int angry_id_ = -1;
+    int sweat_id_ = -1;
 
     lv_obj_t* geometry_root_ = nullptr;   // 几何脸根容器（浮在 emoji_box 之上）
     bool      geometry_visible_ = false;
