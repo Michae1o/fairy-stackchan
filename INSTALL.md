@@ -576,14 +576,25 @@ python -m esptool --chip esp32s3 -p <串口> -b 460800 write-flash 0x0 factory-b
 可以推摇杆控头 + 按 B 键开关对话 —— 走 ESP-NOW，**不依赖路由器、不依赖有没有网**。
 
 ```text
-⚠️ Windows 上先装 FTDI 驱动（Windows 不自带，遥控器是 FTDI 芯片；
-   而设备管理器里的「自动搜索」也找不到 —— 微软没放进 Windows Update）：
+⚠️ Windows 上必须先装 FTDI 驱动 —— 这是这一节最容易卡住的地方：
 
-     python3 tools/fetch-ftdi-driver.py
-     → 设备管理器 → 右键那台带感叹号的 M5stack（在其他设备下）
-     → 更新驱动程序 →【浏览我的电脑以查找驱动程序】
-     → 指向脚本解出来的目录
-     成功标志：端口 (COM 和 LPT) 下出现 USB Serial Port (COMx)
+   ① 取驱动文件：
+          python3 tools/fetch-ftdi-driver.py
+      （从微软驱动库挑出认 FT232R 的那一包 —— 不能随便下，见下面第八节）
+
+   ② 装：
+          双击 tools\install-ftdi-driver.bat        ← 会自己申请管理员
+      不想用脚本就手动：
+          设备管理器 → 右键【其他设备】下那台带黄色感叹号的 M5stack
+          → 更新驱动程序 →【浏览我的电脑以查找驱动程序】
+          → 指向 ① 解出来的目录 → 下一页
+      ⛔ 别选「自动搜索驱动程序」—— 微软没把 FTDI 驱动放进 Windows Update，那条路是死的
+
+      成功标志：设备管理器 →【端口 (COM 和 LPT)】下出现 USB Serial Port (COMx)
+```
+
+⇒ **为什么不能自动搜索、为什么下的包要挑芯片型号、装不上怎么办（6 类症状）**：
+见 [`../firmware-bin/README.md`](../firmware-bin/README.md) **第八节 8.2.1**（手把手）。
 
 刷：
      python -m esptool --chip esp32 -p <遥控器的串口> -b 1500000 \

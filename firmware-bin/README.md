@@ -289,37 +289,151 @@ M5Burner 需去官网下载安装（<https://docs.m5stack.com/zh_CN/download>）
 
 ⚠️ **这一步最容易卡的其实不是固件，是 Windows 的驱动。** 先看 8.2.1。
 
-#### 8.2.1 ⚠️ Windows 上必须先装 FTDI 驱动
+#### 8.2.1 ⚠️ Windows 上必须先装 FTDI 驱动（手把手）
 
-遥控器用的是一颗 **FTDI** USB 转串口芯片。**Windows 不自带它的驱动**，
-FTDI 官网又有 Cloudflare 人机验证（脚本抓不动）。没装驱动时的样子：
+**为什么**：遥控器用的是一颗 **FTDI** USB 转串口芯片。**Windows 不自带它的驱动**，
+FTDI 官网又被 Cloudflare 的人机验证挡着（脚本抓不动），而设备管理器里的
+「自动搜索驱动程序」也**找不到** —— 因为微软没把它放进 Windows Update。
 
-```text
-设备管理器 → 其他设备 → M5stack        ← 带黄色感叹号
-它的 ProblemCode = 28                  ← 28 = 没装驱动
-系统里只有 COM1（主板自带的老式通信口），没有遥控器的 COM 口
-```
-
-**这不是线的问题**：数据是通的（电脑能读出「它叫 M5stack」），缺的是「翻译」。
-※ 也别走「更新驱动 → 自动搜索」—— 微软**没把这个驱动放进 Windows Update**。
-
-装法（推荐 A）：
+**先确认是不是这个问题**（没装驱动时长这样）：
 
 ```text
-A. 用本仓库的脚本从【微软官方驱动库】取（不碰被墙的官网）
-      python3 tools/fetch-ftdi-driver.py
-   ★ 为什么不能随便下：微软按【芯片型号】把 FTDI 驱动拆成了好几个包，
-     遥控器是 FT232R = USB\VID_0403&PID_6001 ⇒ 必须挑认这个硬件 ID 的那个，
-     否则装上也不认（脚本会自动逐个解开、只挑对的）。
-   装：解压出来的目录 → 设备管理器 → 右键那个带感叹号的 M5stack
-       → 更新驱动程序 →【浏览我的电脑以查找驱动程序】→ 指向该目录
-       （★ 是「浏览我的电脑」，不是「自动搜索」）
-B. 从官网下（浏览器里手动过 Cloudflare 验证）
-      https://ftdichip.com/drivers/vcp-drivers/  →  CDM21228_Setup.exe
-C. 有别的机器已经装过 ⇒ 直接把驱动目录拷过来
+· 设备管理器 →「其他设备」下面有一台叫 M5stack 的，图标带【黄色感叹号】
+· 右键它 → 属性 →「常规」页写着：该设备的驱动程序未被安装（代码 28）
+·「端口 (COM 和 LPT)」下面【只有主板自带的 通信端口 (COM1)】，没有 USB Serial Port
+· 刷机时 esptool 报：Failed to connect ... No serial data received
 ```
 
-**装成功的标志**：`设备管理器 → 端口 (COM 和 LPT) → USB Serial Port (COMx)`
+**这不是线的问题** —— 数据是通的（电脑能读出「它叫 M5stack」），缺的只是「翻译」。
+
+---
+
+**第 1 步：把驱动文件取到本地**
+
+```bash
+python3 tools/fetch-ftdi-driver.py            # 默认解到 ./ftdi-driver/
+```
+
+跑完会看到类似：
+
+```text
+[5/5] OK -> /你的路径/ftdi-driver
+      2 个 .inf / 2 个 .sys
+```
+
+★ **这一步为什么必须用脚本（不能随便下）**：微软把 FTDI 驱动**按芯片型号拆成了好几个包**
+（6001 / 7001 / E6B0 …），搜索页上标题全都一模一样。遥控器是 **FT232R**
+（硬件 ID `USB\VID_0403&PID_6001`），脚本会把所有包解开、只留 inf 里真的含这个 ID 的那个。
+**自己随便下一个装上是不认的**（作者第一次就下错了）。
+
+不想跑脚本 ⇒ 手动：去 <https://www.catalog.update.microsoft.com/Search.aspx?q=FTDI>
+把几个 `.cab` 都下下来，用 `expand xxx.cab -F:* 目录` 解开，
+再**用记事本逐个打开 `ftdibus.inf`，找含 `VID_0403&PID_6001` 的那个** —— 就是它。
+
+---
+
+**第 2 步：装（三种方式，任选一种）**
+
+**方式 A｜一键脚本（最省事）**
+
+```text
+双击 tools\install-ftdi-driver.bat
+    它会：自己弹 UAC 申请管理员 → 把两个 inf 装进系统 → 刷新设备列表 → 打印现在的串口
+    前提：第 1 步的 ftdi-driver\ 目录在仓库根目录下
+```
+
+**方式 B｜命令行（三行）**
+
+以**管理员**身份打开 PowerShell 或 CMD（右键【开始】→「终端(管理员)」/「Windows PowerShell (管理员)」）：
+
+```bat
+pnputil /add-driver "ftdi-driver\ftdibus.inf"  /install
+pnputil /add-driver "ftdi-driver\ftdiport.inf" /install
+pnputil /scan-devices
+```
+
+每条会打印「已成功添加驱动程序包」/「已成功导入驱动程序包」，出现这个就对了。
+（路径换成你第 1 步解出来的那个目录。）
+
+**方式 C｜设备管理器（不碰命令行，一步一步点）**
+
+```text
+① 打开设备管理器
+     最快：右键屏幕左下角的【开始】按钮 → 在菜单里选「设备管理器」
+     或者：按 Win+R → 输入 devmgmt.msc → 回车
+
+② 找那台带黄色感叹号的设备
+     它在【其他设备】这一类的下面，名字是【M5stack】
+     （看不到「其他设备」就找任何有黄色感叹号的，名字可能是 M5stack 或 USB Serial Converter）
+     ⛔ 别去动「端口 (COM 和 LPT)」下面的 通信端口 (COM1) —— 那是主板的老式串口，不是它
+
+③ 右键它 → 选【更新驱动程序】
+
+④ 选【浏览我的电脑以查找驱动程序】
+     ⛔ 不要选上面那项「自动搜索驱动程序」—— 那条路是死的（微软没放进 Windows Update）
+
+⑤ 在「在这个位置搜索驱动程序」里填第 1 步解出来的目录，例如：
+         D:\fairy-stackchan\ftdi-driver
+     ✅「包括子文件夹」保持勾上 → 点【下一页】
+
+⑥ 应该马上就装好，提示「已安装此设备的驱动程序软件」
+     （装的时候屏幕可能闪一下、鼠标停半秒 —— 正常，别以为死机）
+```
+
+---
+
+**第 3 步：确认装好了**
+
+```text
+· 设备管理器的【端口 (COM 和 LPT)】下面出现【USB Serial Port (COMx)】
+     ★ 记下这个 COM 号，刷机时填它
+· 原来那台带感叹号的 M5stack 消失（或变成 USB Serial Converter）
+· 如果它还在、还带感叹号 ⇒ 拔掉遥控器等 3 秒再插一次，然后重跑第 2 步
+```
+
+命令行确认（可选，管理员 CMD）：
+
+```bat
+reg query "HKLM\HARDWARE\DEVICEMAP\SERIALCOMM"
+```
+
+会列出所有串口 —— 里面 `\Device\VCP0` 之类的是 FTDI 那个；`COM1` 是主板的老式口，别搞混。
+
+---
+
+**第 4 步：还是装不上？**
+
+```text
+· 提示「找不到适合此设备的驱动程序」
+     ⇒ 大概率是下的包不对（不是认 VID_0403&PID_6001 的那个）。
+        重跑第 1 步的脚本；手动的话逐个 inf 里搜那个 ID。
+
+· 装完还是带黄色感叹号
+     ⇒ 拔掉遥控器 → 等 3 秒 → 重插；还不行就重启一次电脑再试
+
+· 提示「Windows 无法验证此驱动程序软件的发布者」
+     ⇒ 选【始终安装此驱动程序软件】；公司电脑被策略禁掉的话需要管理员放行
+
+· 装完出现的是「USB Serial Converter」而不是「USB Serial Port」
+     ⇒ 这是正常的：FTDI 是两层驱动（bus + port）。再跑一次
+        `pnputil /scan-devices`（或把第 2 步再做一遍），port 那层会自己补上
+
+· 想彻底从头来
+     ⇒ 设备管理器里右键那台设备 → 卸载设备 → 勾上「删除此设备的驱动程序」
+        → 拔插遥控器 → 重新走第 2 步
+
+· Linux / macOS
+     ⇒ 一般自带 FTDI 驱动，插上就有 /dev/ttyUSB0 或 /dev/cu.usbserial-*
+        看不到就 `dmesg | tail`（Linux）/ `system_profiler SPUSBDataType`（macOS）确认认没认到
+```
+
+---
+
+**顺带：为什么脚本不走 FTDI 官网**
+
+官网 <https://ftdichip.com/drivers/vcp-drivers/> 有 **Cloudflare 人机验证** ——
+脚本去抓会吃 403，得在浏览器里手动点过「验证您不是机器人」才能下 `CDM21228_Setup.exe`。
+能过验证就用它（官网一键安装包，最省事）；**微软驱动库那条路不需要过验证**，所以脚本走了那边。
 
 #### 8.2.2 刷机
 
